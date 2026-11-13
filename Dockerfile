@@ -6,10 +6,10 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 
 COPY package.json package-lock.json ./
-COPY packages/engine/package.json packages/engine/package-lock.json ./packages/engine/
+# copy full engine package (includes tsconfig/src) before npm ci
+COPY packages/engine ./packages/engine
 
 RUN npm ci
-RUN npm ci --prefix packages/engine
 
 COPY . .
 RUN npm run build --prefix packages/engine
