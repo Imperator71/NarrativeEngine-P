@@ -76,5 +76,12 @@
     "proxy-addr": "^2.0.8",
     "source-map-js": "^1.2.2",
     "postcss-selector-parser": "^7.1.6"
+  },
+  "allowScripts": {
+    "better-sqlite3@12.11.1": true,
+    "esbuild@0.28.1": true,
+    "onnxruntime-node@1.24.3": true,
+    "onnxruntime-node@1.21.0": true,
+    "protobufjs@7.6.5": true
   }
 }
