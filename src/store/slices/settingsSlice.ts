@@ -2,7 +2,6 @@ import type { StateCreator } from 'zustand';
 import type { AiTier, AppSettings, LLMProvider, AIPreset } from '../../types';
 import { emitCoreEvent } from '../../services/mods/events';
 import { get as idbGet } from 'idb-keyval';
-import { decryptSettingsProviders, decryptSettingsPresets } from '../../services/infrastructure/settingsCrypto';
 import { toast } from '../../components/Toast';
 import { api } from '../../services/llm/apiClient';
 import { applySlotThinking } from './slotThinking';
@@ -72,53 +71,40 @@ export const createSettingsSlice: StateCreator<SettingsSlice & { activeCampaignI
     settingsLoaded: false,
 
     loadSettings: async () => {
+        const applyLoaded = (migrated: AppSettings) => {
+            set({ settings: migrated, settingsLoaded: true } as Partial<SettingsSlice>);
+            applyTheme(migrated.theme ?? 'light');
+            applyUIScale(migrated.uiScale ?? 1.0);
+            applyBetaUi(migrated.betaUi ?? false);
+            applyLocale(migrated.locale ?? 'en');
+        };
+
+        // The server owns settings (and the provider keys it withholds from this
+        // response — they arrive as `***`). Read it first; the IndexedDB copy is
+        // only a first-paint cache for the UI preferences.
         try {
-            const localSettings = await idbGet('nn_settings');
-            if (localSettings && localSettings.settings) {
-                const raw = localSettings as any;
-
-                // Decrypt providers (new two-tier) and legacy inline-config presets (if still present).
-                const providersPlain = await decryptSettingsProviders(raw.settings?.providers ?? []);
-                const presetsPlain = await decryptSettingsPresets(raw.settings?.presets ?? []);
-
-                const migrated = migrateSettings({
-                    settings: {
-                        ...(raw.settings || {}),
-                        providers: providersPlain,
-                        presets: presetsPlain,
-                    },
-                });
-
-                set({
-                    settings: migrated,
-                    settingsLoaded: true,
-                } as Partial<SettingsSlice>);
-                applyTheme(migrated.theme ?? 'light');
-                applyUIScale(migrated.uiScale ?? 1.0);
-                applyBetaUi(migrated.betaUi ?? false);
-                applyLocale(migrated.locale ?? 'en');
-                return;
-            }
-
             const res = await fetch(`${API}/settings`);
             if (res.ok) {
                 const data = await res.json();
-                const migrated = migrateSettings(data);
-                set({
-                    settings: migrated,
-                    settingsLoaded: true,
-                } as Partial<SettingsSlice>);
-                applyTheme(migrated.theme ?? 'light');
-                applyUIScale(migrated.uiScale ?? 1.0);
-                applyBetaUi(migrated.betaUi ?? false);
-                applyLocale(migrated.locale ?? 'en');
-                debouncedSaveSettings(migrated, null);
+                if (data && data.settings) {
+                    applyLoaded(migrateSettings(data));
+                    return;
+                }
+            }
+        } catch (e) {
+            console.warn('Failed to load settings from the server, falling back to the browser cache', e);
+        }
+
+        try {
+            const localSettings = await idbGet('nn_settings');
+            if (localSettings && localSettings.settings) {
+                applyLoaded(migrateSettings({ settings: localSettings.settings }));
                 return;
             }
         } catch (e) {
-            console.warn('Failed to load settings, using defaults', e);
-            toast.warning('Could not load saved settings — using defaults');
+            console.warn('Failed to read the settings cache', e);
         }
+
         // No stored settings: state is still `defaultSettings`, whose locale was
         // seeded from the browser. Project it so the document matches the state.
         applyLocale(get().settings?.locale ?? 'en');

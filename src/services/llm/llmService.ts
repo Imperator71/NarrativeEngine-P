@@ -6,6 +6,7 @@ import { getQueueForEndpoint } from './llmRequestQueue';
 import { getChatUrl, getModelsUrl, buildChatHeaders, buildChatBody, getApiFormat, extractStreamDelta, extractStreamToolCall } from '../../utils/llmApiHelper';
 import { recordCacheUsage, type LLMUsage } from './cacheTelemetry';
 import { llmFetch } from './llmFetch';
+import { hasRealKey } from '../settings/maskedKey';
 import { startUtilityCall } from './utilityCallTracker';
 import { normalizeStoryTimeoutSeconds } from './timeouts';
 
@@ -76,9 +77,10 @@ export async function sendMessage(
         }
         const payload = buildChatBody(provider, requestMessages, { stream: true, tools: tools ?? [], sampling, thinkingEffort });
 
-        // Gemini auth: append ?key= to URL
+        // Gemini auth: the server appends ?key= from its stored provider config.
+        // A legacy browser-side key still works until it is re-entered server-side.
         let fetchUrl = url;
-        if (format === 'gemini' && provider.apiKey) {
+        if (format === 'gemini' && hasRealKey(provider.apiKey)) {
             const sep = fetchUrl.includes('?') ? '&' : '?';
             fetchUrl = `${fetchUrl}${sep}key=${provider.apiKey}`;
         }
@@ -305,8 +307,8 @@ export async function testConnection(provider: EndpointConfig | ProviderConfig):
     delete headers['Content-Type'];
     let url = getModelsUrl(provider);
 
-    // Gemini auth: append ?key= to URL
-    if (format === 'gemini' && provider.apiKey) {
+    // Gemini auth: the server appends ?key= from its stored provider config.
+    if (format === 'gemini' && hasRealKey(provider.apiKey)) {
         url = `${url}?key=${provider.apiKey}`;
     }
 

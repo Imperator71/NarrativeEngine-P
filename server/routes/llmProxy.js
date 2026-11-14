@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { Readable } from 'stream';
 import { Agent, fetch as undiciFetch } from 'undici';
 import { wrapAsync } from '../lib/asyncHandler.js';
+import { readProviders } from './settings.js';
 
 /**
  * Upper bound on how long the proxy waits on a provider — for the first byte
@@ -38,8 +39,13 @@ export function createLLMProxyRouter({ upstreamTimeoutMs = UPSTREAM_TIMEOUT_MS, 
     // Transparent relay so the browser never calls AI providers directly.
     // Fixes CORS for providers (e.g. NVIDIA) that don't send Access-Control-Allow-Origin.
     // The client builds the real target/headers/body; we forward and stream the reply back.
+    //
+    // Credentials are no longer the client's to send: when the request names a
+    // `providerId`, this route resolves that provider from data/settings.json,
+    // refuses any target outside the provider's own host, and injects the stored
+    // key itself. The browser never holds, and never transmits, an API key.
     router.post('/api/llm/proxy', wrapAsync(async (req, res) => {
-        const { target, method = 'POST', headers = {}, body } = req.body || {};
+        const { target, method = 'POST', headers = {}, body, providerId } = req.body || {};
         if (!target || typeof target !== 'string') {
             res.status(400).json({ error: 'Missing proxy target' });
             return;
@@ -59,6 +65,45 @@ export function createLLMProxyRouter({ upstreamTimeoutMs = UPSTREAM_TIMEOUT_MS, 
             return;
         }
 
+        // Headers the client sent, minus anything that smells like a credential:
+        // those are the server's to set, and a stale client copy must not leak.
+        const forwardHeaders = { ...headers };
+        if (providerId) {
+            for (const name of Object.keys(forwardHeaders)) {
+                if (/^(authorization|x-api-key|api-key|anthropic-version)$/i.test(name.trim())) {
+                    delete forwardHeaders[name];
+                }
+            }
+            const provider = readProviders().find((p) => p && p.id === providerId);
+            if (!provider) {
+                res.status(404).json({ error: 'Unknown provider' });
+                return;
+            }
+            let providerUrl;
+            try {
+                providerUrl = new URL(provider.endpoint);
+            } catch {
+                res.status(500).json({ error: 'That provider has an invalid endpoint URL' });
+                return;
+            }
+            // The provider's key may only be spent on the provider's own host.
+            if (providerUrl.host !== targetUrl.host) {
+                res.status(403).json({ error: 'Proxy target does not belong to the named provider' });
+                return;
+            }
+            const key = typeof provider.apiKey === 'string' ? provider.apiKey : '';
+            if (key) {
+                if (provider.apiFormat === 'gemini') {
+                    targetUrl.searchParams.set('key', key);
+                } else if (provider.apiFormat === 'claude') {
+                    forwardHeaders['x-api-key'] = key;
+                    forwardHeaders['anthropic-version'] = '2023-06-01';
+                } else {
+                    forwardHeaders['Authorization'] = `Bearer ${key}`;
+                }
+            }
+        }
+
         const controller = new AbortController();
         // Browser aborted the turn → tear down the upstream request too.
         // NOTE: listen on `res`, not `req`. express.json() fully consumes the request
@@ -71,9 +116,9 @@ export function createLLMProxyRouter({ upstreamTimeoutMs = UPSTREAM_TIMEOUT_MS, 
 
         let upstream;
         try {
-            upstream = await fetchImpl(target, {
+            upstream = await fetchImpl(providerId ? targetUrl.toString() : target, {
                 method,
-                headers,
+                headers: forwardHeaders,
                 body: method === 'GET' || method === 'HEAD' ? undefined : body,
                 signal: controller.signal,
                 dispatcher,

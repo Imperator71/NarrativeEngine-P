@@ -1,7 +1,7 @@
 import { DEFAULT_SCENE_RECALL_BUDGET, normalizeSceneRecallBudget } from '../../services/archive-memory/recallBudget';
 import type { AppSettings, LLMProvider, AIPreset, ApiFormat, AiTier } from '../../types';
 import { set as idbSet } from 'idb-keyval';
-import { encryptSettingsProviders } from '../../services/infrastructure/settingsCrypto';
+import { MASKED_KEY } from '../../services/settings/maskedKey';
 import { uid } from '../../utils/uid';
 import { DEFAULT_STORY_TIMEOUT_SECONDS, normalizeStoryTimeoutSeconds } from '../../services/llm/timeouts';
 import { toast } from '../../components/Toast';
@@ -498,24 +498,34 @@ export function migrateSettings(data: Record<string, unknown>): AppSettings {
 
 // Debounced save to avoid hammering the API on rapid changes
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+/** Deep copy of settings with every `apiKey` replaced by the mask. */
+function maskSettingsKeys(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map(maskSettingsKeys);
+    if (!value || typeof value !== 'object') return value;
+    const out: Record<string, unknown> = {};
+    for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+        if (key === 'apiKey' && typeof raw === 'string') out[key] = raw ? MASKED_KEY : '';
+        else out[key] = maskSettingsKeys(raw);
+    }
+    return out;
+}
+
 export function debouncedSaveSettings(settings: AppSettings, activeCampaignId: string | null) {
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(async () => {
-        const encryptedProviders = await encryptSettingsProviders(settings.providers);
-        const encryptedSettings = { ...settings, providers: encryptedProviders };
-
-        idbSet('nn_settings', { settings: encryptedSettings, activeCampaignId })
-            .catch((e) => { console.error(e); toast.error('Failed to save settings to browser storage'); });
-
-        // The server copy gets the same encrypted providers as browser storage.
-        // It used to receive the plaintext object, and the server's strip only
-        // knew the legacy per-preset shape, so provider keys were written to
-        // data/settings.json in the clear. The server now blanks every apiKey
-        // it sees; sending ciphertext means no key leaves the browser either way.
+        // The server is the owner of provider credentials: it receives the real
+        // keys and writes them to data/settings.json (plaintext, NAS volume
+        // permissions + Caddy auth are the boundary). The browser keeps only a
+        // masked copy so a reload can paint before /api/settings answers.
         fetch(`${API}/settings`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ settings: encryptedSettings, activeCampaignId }),
-        }).catch((e) => { console.error(e); toast.warning('Settings saved locally but server backup failed'); });
+            body: JSON.stringify({ settings, activeCampaignId }),
+        }).catch((e) => { console.error(e); toast.warning('Settings could not be saved to the server'); });
+
+        const masked = maskSettingsKeys(settings) as AppSettings;
+        idbSet('nn_settings', { settings: masked, activeCampaignId })
+            .catch((e) => { console.error(e); toast.error('Failed to cache settings in this browser'); });
     }, 500);
 }

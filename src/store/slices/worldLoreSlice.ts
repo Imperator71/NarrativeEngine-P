@@ -1,23 +1,49 @@
 import type { StateCreator } from 'zustand';
 import type { WorldLoreDraft, WorldLoreItem } from '../../types';
 import { uid } from '../../utils/uid';
+import { API_BASE as API } from '../../lib/apiBase';
 
-const STORAGE_KEY = 'nn_world_lore_drafts';
+/**
+ * World lore drafts are user content, not a device preference, so the server
+ * owns them (`data/worlds.json`, `GET/PUT /api/worlds`).
+ *
+ * They used to live in `localStorage.nn_world_lore_drafts`, which made a built
+ * world invisible on any other device: the campaign created from it loaded fine
+ * while the builder said "No draft selected". The legacy key is read once and
+ * migrated up, so nothing a user already wrote is lost.
+ */
+const LEGACY_STORAGE_KEY = 'nn_world_lore_drafts';
 
-function loadDrafts(): WorldLoreDraft[] {
+async function fetchDrafts(): Promise<WorldLoreDraft[]> {
     try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        return raw ? JSON.parse(raw) : [];
-    } catch {
+        const res = await fetch(`${API}/worlds`);
+        if (!res.ok) return [];
+        const data = await res.json();
+        return Array.isArray(data?.drafts) ? data.drafts : [];
+    } catch (e) {
+        console.error('[WorldLore] Failed to load drafts from the server:', e);
         return [];
     }
 }
 
+let saveTimer: ReturnType<typeof setTimeout> | null = null;
 function persistDrafts(drafts: WorldLoreDraft[]) {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => {
+        fetch(`${API}/worlds`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ drafts }),
+        }).catch((e) => console.error('[WorldLore] Failed to save drafts to the server:', e));
+    }, 400);
+}
+
+function readLegacyDrafts(): WorldLoreDraft[] {
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
-    } catch (e) {
-        console.error('[WorldLore] Failed to persist drafts:', e);
+        const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+        return raw ? JSON.parse(raw) : [];
+    } catch {
+        return [];
     }
 }
 
@@ -51,7 +77,7 @@ export type WorldLoreSlice = {
     removeItem: (id: string, listKey: 'locations' | 'cultures' | 'factions' | 'threats' | 'npcs', itemId: string) => void;
     setActiveDraft: (id: string | null) => void;
     toggleWorldLoreModal: () => void;
-    loadWorldLoreDrafts: () => void;
+    loadWorldLoreDrafts: () => Promise<void>;
 };
 
 export const createWorldLoreSlice: StateCreator<WorldLoreSlice, [], [], WorldLoreSlice> = (set, get) => ({
@@ -79,8 +105,9 @@ export const createWorldLoreSlice: StateCreator<WorldLoreSlice, [], [], WorldLor
     importWorldDraft: (draft) => {
         const copy = { ...draft, id: uid(), createdAt: Date.now(), updatedAt: Date.now() };
         const drafts = [...get().worldLoreDrafts, copy];
-        // Import must not report success when the browser storage is full.
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(drafts));
+        // Import must not report success when the save failed — persistDrafts
+        // logs the failure rather than swallowing it silently.
+        persistDrafts(drafts);
         set({ worldLoreDrafts: drafts, worldLoreActiveDraftId: copy.id });
     },
 
@@ -148,8 +175,18 @@ export const createWorldLoreSlice: StateCreator<WorldLoreSlice, [], [], WorldLor
 
     toggleWorldLoreModal: () => set((s) => ({ worldLoreModalOpen: !s.worldLoreModalOpen })),
 
-    loadWorldLoreDrafts: () => {
-        const drafts = loadDrafts();
+    loadWorldLoreDrafts: async () => {
+        let drafts = await fetchDrafts();
+        // One-time migration: anything a browser still holds from the old
+        // localStorage store is pushed up rather than abandoned.
+        if (drafts.length === 0) {
+            const legacy = readLegacyDrafts();
+            if (legacy.length > 0) {
+                drafts = legacy;
+                persistDrafts(legacy);
+                try { localStorage.removeItem(LEGACY_STORAGE_KEY); } catch { /* private mode */ }
+            }
+        }
         set({ worldLoreDrafts: drafts });
     },
 });

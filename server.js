@@ -4,6 +4,7 @@ import { KeyVault } from './server/vault.js';
 import { DATA_DIR, PUBLIC_ASSETS_DIR, MODS_DIR, BUNDLED_MODS_DIR, APP_VERSION, ensureDirs } from './server/lib/fileStore.js';
 import { createVaultRouter } from './server/routes/vault.js';
 import { createSettingsRouter } from './server/routes/settings.js';
+import { createWorldsRouter } from './server/routes/worlds.js';
 import { createCampaignsRouter } from './server/routes/campaigns.js';
 import { createArchiveRouter } from './server/routes/archive.js';
 import { createChaptersRouter } from './server/routes/chapters.js';
@@ -131,6 +132,7 @@ warmupTts().catch(err => console.error('[TTS] Warmup failed:', err.message));
 // ─── Routes ───
 app.use(createVaultRouter(vault));
 app.use(createSettingsRouter());
+app.use(createWorldsRouter());
 app.use(createCampaignsRouter());
 app.use(createArchiveRouter());
 app.use(createChaptersRouter());

@@ -11,6 +11,12 @@ const __projectRoot = path.join(__fileDir, '../..');
 export const DATA_DIR = process.env.DATA_DIR || path.join(__projectRoot, 'data');
 export const CAMPAIGNS_DIR = path.join(DATA_DIR, 'campaigns');
 export const SETTINGS_FILE = path.join(DATA_DIR, 'settings.json');
+/**
+ * World lore drafts. They used to live in the browser's localStorage, which made
+ * authored world content invisible to every other device. They are user content,
+ * not a device preference, so they belong next to the campaigns.
+ */
+export const WORLDS_FILE = path.join(DATA_DIR, 'worlds.json');
 export const BACKUPS_DIR = path.join(DATA_DIR, 'backups');
 export const PUBLIC_ASSETS_DIR = process.env.NODE_ENV === 'production'
     ? path.join(DATA_DIR, 'portraits')

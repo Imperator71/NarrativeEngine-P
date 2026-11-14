@@ -1,4 +1,5 @@
 import type { EndpointConfig, ProviderConfig, ApiFormat, SamplingConfig, ThinkingEffort } from '../types';
+import { hasRealKey } from '../services/settings/maskedKey';
 
 type AnyProvider = EndpointConfig | ProviderConfig;
 
@@ -139,15 +140,19 @@ export function getModelsUrl(provider: AnyProvider): string {
 export function buildChatHeaders(provider: AnyProvider): Record<string, string> {
     const headers: Record<string, string> = { 'Content-Type': 'application/json' };
     const format = getApiFormat(provider);
+    // Keys live on the server; `provider.apiKey` is either empty or the mask.
+    // Only a real key (a legacy in-browser one) is ever attached here, and the
+    // proxy strips credentials anyway — the server injects the stored key.
+    const key = hasRealKey(provider.apiKey) ? provider.apiKey : '';
     if (format === 'claude') {
-        if (provider.apiKey) {
-            headers['x-api-key'] = provider.apiKey;
+        if (key) {
+            headers['x-api-key'] = key;
             headers['anthropic-version'] = '2023-06-01';
         }
     } else if (format === 'gemini') {
         // Gemini auth goes in URL param, not headers — remove Content-Type for GET-style endpoints
-    } else if (provider.apiKey) {
-        headers['Authorization'] = `Bearer ${provider.apiKey}`;
+    } else if (key) {
+        headers['Authorization'] = `Bearer ${key}`;
     }
     return headers;
 }
