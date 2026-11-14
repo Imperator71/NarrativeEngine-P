@@ -1,5 +1,8 @@
 import express from 'express';
 import cors from 'cors';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { DATA_DIR, PUBLIC_ASSETS_DIR, MODS_DIR, BUNDLED_MODS_DIR, APP_VERSION, ensureDirs } from './server/lib/fileStore.js';
 import { createSettingsRouter } from './server/routes/settings.js';
 import { createWorldsRouter } from './server/routes/worlds.js';
@@ -162,6 +165,20 @@ app.use(mountGenericTableRoutes());
 // never shadow a built-in route. With no mod tables registered, every request
 // is a 404 — no file is touched.
 app.use(mountModTableRoutes());
+
+// ─── Frontend (built bundle) ───
+// In development the SPA is served by Vite on :5173, which proxies /api here.
+// In the container there is no Vite: the built bundle in dist/ is served by this
+// process, on the same origin as the API, so Caddy only has to forward one port
+// and the app needs no separate web server.
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DIST_DIR = path.join(__dirname, 'dist');
+const hasBuiltFrontend = fs.existsSync(path.join(DIST_DIR, 'index.html'));
+if (hasBuiltFrontend) {
+    app.use(express.static(DIST_DIR, { index: false, maxAge: '1h' }));
+    // SPA fallback: any non-API GET renders the app shell (client-side routing).
+    app.get(/^\/(?!api\/).*/, (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));
+}
 
 // ─── Central Error Handler ───
 app.use((err, _req, res, _next) => {
