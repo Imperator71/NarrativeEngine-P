@@ -3,7 +3,7 @@ name: Build and Publish Docker image
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, server-auth]
 
 permissions:
   contents: read
@@ -30,6 +30,9 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
+            # Branch pushes also publish `:server-auth`, which is what the
+            # parallel TrueNAS deployment pulls.
+            type=ref,event=branch
             type=sha,format=short
       - uses: docker/build-push-action@v6
         with:
