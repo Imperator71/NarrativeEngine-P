@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../../store/useAppStore';
-import { VaultSection } from './VaultSection';
 import { LanguageSection } from './LanguageSection';
 import { BackgroundControl } from '../BackgroundControl';
 import type { ReadingAlign, ReadingFont, ReadingLeading, ReadingWidth } from '../../types';
@@ -696,14 +695,6 @@ export function GlobalSettingsTab() {
       </div>
       </div>
 
-      <div data-ui="settings-section" data-group="security" data-active={activeGroup === 'security' ? 'true' : undefined} className="contents">
-      <h4 data-ui="settings-group" className="hidden">Security</h4>
-
-      {/* Vault Export/Import */}
-      <div className="md:col-span-2">
-        <VaultSection />
-      </div>
-      </div>
       </div>
     </div>
   );

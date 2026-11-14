@@ -7,20 +7,15 @@ import { serverError } from '../lib/serverError.js';
 import { composeSceneImagePrompt } from '../services/sceneImageComposerService.js';
 import { generateSceneImage, generateComfyImageDataUri, getCampaignSceneImagesDir } from '../services/imageProvider.js';
 
-export function createSceneImagesRouter(vault) {
+export function createSceneImagesRouter() {
     const router = Router();
 
+    // Settings are the single source now that the server owns provider
+    // credentials: the second source that used to sit here (an unlocked KeyVault
+    // overriding presets/providers) would only hand back stale copies.
     const getSettings = () => {
         const settings = readJson(SETTINGS_FILE, {});
-        let keys = {};
-        try {
-            if (vault && typeof vault.getKeys === 'function') {
-                keys = vault.getKeys() || {};
-            }
-        } catch {
-            keys = {};
-        }
-        return { settings, keys };
+        return { settings, keys: {} };
     };
 
     const getActiveStoryConfig = (overrideConfig) => {
@@ -29,17 +24,8 @@ export function createSceneImagesRouter(vault) {
         }
 
         const { settings } = getSettings();
-        let vaultData = null;
-        try {
-            if (vault && typeof vault.isUnlocked === 'function' && vault.isUnlocked()) {
-                vaultData = vault.getData();
-            }
-        } catch {
-            vaultData = null;
-        }
-
-        const presets = vaultData?.presets?.length ? vaultData.presets : (settings.presets || []);
-        const providers = vaultData?.providers?.length ? vaultData.providers : (settings.providers || []);
+        const presets = settings.presets || [];
+        const providers = settings.providers || [];
 
         const activePresetId = settings.activePresetId;
         const activePreset = presets.find(p => p.id === activePresetId) || presets[0];
@@ -70,17 +56,8 @@ export function createSceneImagesRouter(vault) {
         }
 
         const { settings } = getSettings();
-        let vaultData = null;
-        try {
-            if (vault && typeof vault.isUnlocked === 'function' && vault.isUnlocked()) {
-                vaultData = vault.getData();
-            }
-        } catch {
-            vaultData = null;
-        }
-
-        const presets = vaultData?.presets?.length ? vaultData.presets : (settings.presets || []);
-        const providers = vaultData?.providers?.length ? vaultData.providers : (settings.providers || []);
+        const presets = settings.presets || [];
+        const providers = settings.providers || [];
 
         const activePresetId = settings.activePresetId;
         const activePreset = presets.find(p => p.id === activePresetId) || presets[0];
