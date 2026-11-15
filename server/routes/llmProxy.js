@@ -24,6 +24,51 @@ import { readProviders } from './settings.js';
 export const UPSTREAM_TIMEOUT_MS = 65 * 60 * 1000;
 
 /**
+ * Replace unpaired UTF-16 surrogate halves with U+FFFD throughout a JSON payload.
+ *
+ * Why this exists: an emoji is two UTF-16 code units, and any step that cuts a
+ * string mid-character (a length cap, a slice, a bad import) can leave only the
+ * first half. JavaScript keeps such a string happily, and JSON.stringify even
+ * escapes it so it survives transmission — but the provider parses the escape
+ * back into an unpaired code unit, and its own utf-8 encoder then refuses the
+ * request ("'utf-8' codec can't encode character: surrogates not allowed").
+ *
+ * The damage is invisible in the serialized text, so the repair has to look at
+ * the parsed values, not the text: parse the JSON, repair every string, and
+ * re-stringify only if something actually changed. A body that is not JSON is
+ * repaired directly.
+ */
+function repairLoneSurrogates(body) {
+    if (typeof body !== 'string' || !body) return body;
+
+    let parsed;
+    try {
+        parsed = JSON.parse(body);
+    } catch {
+        return body.isWellFormed() ? body : body.toWellFormed();
+    }
+
+    let changed = false;
+    const walk = (value) => {
+        if (typeof value === 'string') {
+            if (value.isWellFormed()) return value;
+            changed = true;
+            return value.toWellFormed();
+        }
+        if (Array.isArray(value)) return value.map(walk);
+        if (value && typeof value === 'object') {
+            const out = {};
+            for (const [key, nested] of Object.entries(value)) out[key] = walk(nested);
+            return out;
+        }
+        return value;
+    };
+
+    const repaired = walk(parsed);
+    return changed ? JSON.stringify(repaired) : body;
+}
+
+/**
  * @param {{ upstreamTimeoutMs?: number, fetchImpl?: typeof undiciFetch }} [options]
  *   Tests shorten the ceiling or inject a fetch; production uses the defaults.
  */
@@ -114,12 +159,21 @@ export function createLLMProxyRouter({ upstreamTimeoutMs = UPSTREAM_TIMEOUT_MS, 
             if (!res.writableEnded) controller.abort();
         });
 
+        // Harden the send. A lone surrogate half — one of the two code units of
+        // an emoji, left behind when an earlier step cut a string mid-character —
+        // is legal in JS and survives JSON, but the provider's JSON parser turns
+        // it back into an unpaired char and Python's utf-8 encoder then rejects
+        // the whole turn ("surrogates not allowed"). Repair at this one choke
+        // point: parse the payload, replace each unpaired half with U+FFFD, and
+        // re-stringify. Valid emoji pass through untouched.
+        const safeBody = repairLoneSurrogates(body);
+
         let upstream;
         try {
             upstream = await fetchImpl(providerId ? targetUrl.toString() : target, {
                 method,
                 headers: forwardHeaders,
-                body: method === 'GET' || method === 'HEAD' ? undefined : body,
+                body: method === 'GET' || method === 'HEAD' ? undefined : safeBody,
                 signal: controller.signal,
                 dispatcher,
             });
