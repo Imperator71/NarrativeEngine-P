@@ -58,6 +58,11 @@ COPY --from=builder /app/server.js ./
 COPY --from=builder /app/server ./server
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/dist ./dist
+# server/lib/nlp.js imports ../../src/data/titles.json, so this one data file has
+# to exist at runtime. Only the JSON: src/data/*.ts is frontend source. Missing
+# it is an ERR_MODULE_NOT_FOUND one second after boot, which crash-loops the
+# container and surfaces to the browser as a 502 from the reverse proxy.
+COPY --from=builder /app/src/data/*.json ./src/data/
 COPY --from=builder /app/packages/engine/package.json ./packages/engine/package.json
 COPY --from=builder /app/packages/engine/dist ./packages/engine/dist
 
