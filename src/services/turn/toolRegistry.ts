@@ -1,4 +1,5 @@
 import type { GameContext, DiceSystemConfig, InventoryProposal } from '../../types';
+import type { DiceInfluence } from '@narrative/engine';
 import {
     handleLoreTool,
     handleNotebookTool,
@@ -38,6 +39,8 @@ export type ToolDispatchContext = {
     notebook: GameContext['notebook'];
     /** Dice system config (for dice rolls). */
     diceSystem: DiceSystemConfig | null | undefined;
+    /** GM dice influence for this turn, if the setting is active. */
+    diceInfluence?: DiceInfluence | null;
 };
 
 export type ToolDispatchResult = {
@@ -80,7 +83,10 @@ const handleNotebook: ToolHandlerFn = (ctx) => {
 };
 
 const handleDice: ToolHandlerFn = (ctx) => {
-    const { toolResult } = handleDiceTool(ctx.arguments, { diceSystem: ctx.diceSystem });
+    const { toolResult } = handleDiceTool(ctx.arguments, {
+        diceSystem: ctx.diceSystem,
+        influence: ctx.diceInfluence ?? null,
+    });
     return {
         toolResult,
         accumulation: 'append',

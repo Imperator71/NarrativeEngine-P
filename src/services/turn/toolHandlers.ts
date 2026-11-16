@@ -2,6 +2,8 @@ import type { GameContext, LoreChunk, DiceSystemConfig, DieType, InventoryPropos
 import { searchLoreByQuery } from '../lore/loreRetriever';
 import { uid } from '../../utils/uid';
 import { mapTier } from '../engine/diceTier';
+import { applyDiceInfluence } from '@narrative/engine';
+import type { DiceInfluence } from '@narrative/engine';
 
 // ── Constants ─────────────────────────────────────────────────────────
 const MAX_NOTEBOOK_OPS = 5;
@@ -289,12 +291,22 @@ function parseAndRoll(expr: string): { total: number; breakdown: string; sides: 
 
 export function handleDiceTool(
     toolArguments: string,
-    ctx: { diceSystem?: DiceSystemConfig | null }
+    ctx: {
+        diceSystem?: DiceSystemConfig | null;
+        /** GM dice influence — applied to the total before the tier is mapped. */
+        influence?: DiceInfluence | null;
+    }
 ): DiceHandlerResult {
     let args: { dice?: string; reason?: string; category?: string } = {};
     try { args = JSON.parse(toolArguments); } catch { /* ignore */ }
 
-    const { total, breakdown, sides } = parseAndRoll(args.dice ?? '1d20');
+    const rolled = parseAndRoll(args.dice ?? '1d20');
+    const influenced = applyDiceInfluence(rolled.total, rolled.sides, ctx.influence ?? null);
+    const total = influenced.value;
+    const breakdown = influenced.applied
+        ? `${rolled.breakdown} → ${total} (${influenced.label})`
+        : rolled.breakdown;
+    const sides = rolled.sides;
 
     // Look up the DieType by face count for tier mapping
     let tier: string | null = null;

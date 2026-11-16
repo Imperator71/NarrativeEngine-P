@@ -206,6 +206,13 @@ export type TravelState = {
     hopIndex?: number;
 };
 
+export type DiceInfluenceState = {
+    mode: 'min' | 'max' | 'plus' | 'exact';
+    value: number;
+    /** null = until turned off; a number = rolls left. */
+    usesLeft: number | null;
+};
+
 export type GameContext = {
     /** Reader-facing reminders, saved with the campaign; not injected into AI prompts. */
     glossary?: GlossaryEntry[];
@@ -231,6 +238,11 @@ export type GameContext = {
     worldEventDC?: number;
     diceConfig?: DiceConfig;        // @deprecated — migrated to diceSystem on load
     diceSystem?: DiceSystemConfig;   // generalized dice engine config
+    /** GM dice influence: a clamp/modifier applied to the engine's own rolls
+     *  (world engines, fairness pool, the GM's roll_dice calls) while active.
+     *  Saved with the campaign so it survives a reload. See
+     *  packages/engine/src/rolls/diceInfluence.ts for the modes. */
+    diceInfluence?: DiceInfluenceState;
     worldEventConfig?: WorldEventConfig;
     // Toggles: whether each field is appended to context
     canonStateActive: boolean;

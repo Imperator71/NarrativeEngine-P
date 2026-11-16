@@ -39,6 +39,7 @@ export const COMPOSER_BUILTIN_IDS = Object.freeze([
     'trim',
     'deepSearch',
     'diceMe',
+    'diceInfluence',
     'rollLoot',
     'oneShot',
     'absoluteCommand',

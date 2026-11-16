@@ -22,7 +22,7 @@
 import type { NPCEntry, PayloadTrace, SwipeVariant, EndpointConfig, ThinkingEffort } from '../../types';
 import { uid } from '../../utils/uid';
 import { buildPayload, sendMessage } from '../chatEngine';
-import { rollEngines, rollDiceFairness, resolveManualRoll } from '../engine/engineRolls';
+import { rollEngines, rollDiceFairness, resolveManualRoll, consumeDiceInfluence } from '../engine/engineRolls';
 import { resolveLootDrop } from '../engine/lootEngine';
 import { buildOneShotDirective } from '../oneshot/oneShotEvents';
 import { toast } from '../../components/Toast';
@@ -113,7 +113,21 @@ export function resolveEngineRolls(
         // Player-facing reveal — shows on their own turn bubble.
         ctx.displayInputFinal += `\n\n🎲 ${r.detail} → ${tierLabel} (${r.faceValue})`;
     } else {
-        ctx.finalInput += rollDiceFairness(context);
+        ctx.finalInput += rollDiceFairness(context, context.diceInfluence ?? null);
+    }
+
+    // GM dice influence: burns one use per turn that resolved rolls, so "the next
+    // three rolls" means the next three turns' roll sets. The player sees that it
+    // was in play — a steered roll that looks untouched would be a lied transcript.
+    const influence = context.diceInfluence ?? null;
+    if (influence) {
+        const next = consumeDiceInfluence(influence as never);
+        callbacks.updateContext({ diceInfluence: (next ?? undefined) as never });
+        const left = next && next.usesLeft !== null ? ` · ${next.usesLeft} left` : '';
+        const modeLabel = influence.mode === 'plus'
+            ? `plus ${influence.value >= 0 ? '+' : ''}${influence.value}`
+            : `${influence.mode} ${influence.value}`;
+        ctx.displayInputFinal += `\n\n🎲 Dice influence (${modeLabel})${left}`;
     }
 
     // Loot Engine WO-05: player-armed loot drop. Mirrors the dice block above —
@@ -691,7 +705,7 @@ export async function runGenerationStage(
                     }
 
                     const engineText = stripLLMSceneHeader(finalText);
-                    const dispatchResult = toolHandler({ arguments: toolCall.arguments, loreChunks, notebook: state.context.notebook, diceSystem: context.diceSystem });
+                    const dispatchResult = toolHandler({ arguments: toolCall.arguments, loreChunks, notebook: state.context.notebook, diceSystem: context.diceSystem, diceInfluence: context.diceInfluence ?? null });
                     if (dispatchResult.accumulation === 'overwrite') {
                         accumulatedContent = engineText;
                     } else {

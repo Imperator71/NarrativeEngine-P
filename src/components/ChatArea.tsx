@@ -6,6 +6,7 @@ import type { SemanticFact } from '../types';
 import { findPendingCommitMessage } from '../services/turn/pendingCommit';
 import { LootRollModal } from './chat/LootRollModal';
 import { DiceRollModal } from './chat/DiceRollModal';
+import { DiceInfluenceModal } from './chat/DiceInfluenceModal';
 import { SceneImageModal } from './chat/SceneImageModal';
 import { RegenerateSheet } from './chat/RegenerateSheet';
 import { SelectionActionsMenu } from './chat/SelectionActionsMenu';
@@ -401,6 +402,7 @@ export function ChatArea() {
 
             <LootRollModal />
             <DiceRollModal />
+            <DiceInfluenceModal />
             <SceneImageModal />
 
             {pendingPcPrompt && (

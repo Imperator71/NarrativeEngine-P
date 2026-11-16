@@ -1,3 +1,5 @@
+import type { DiceInfluence } from './diceInfluence';
+
 // Dice & world-engine types for the shared engine.
 //
 // These are structural twins of the app-side types (mainApp / mobileApp
@@ -102,4 +104,6 @@ export type EngineDefaultLists = {
 export type RollEnginesOptions = {
     defaults: EngineDefaultLists;
     formatWorldTag: WorldTagFormatter;
+    /** GM dice influence applied to the three engine tiers, if any. */
+    influence?: DiceInfluence | null;
 };

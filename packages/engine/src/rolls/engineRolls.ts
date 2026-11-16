@@ -3,6 +3,8 @@ import type {
     RollDefinition, RollEnginesOptions,
 } from './types';
 import { mapTier, mapTierLegacy } from './diceTier';
+import { applyDiceInfluence } from './diceInfluence';
+import type { DiceInfluence } from './diceInfluence';
 
 export type EngineRollResult = {
     appendToInput: string;
@@ -84,6 +86,7 @@ const pickFrom = (list: string[]): string => list[Math.floor(Math.random() * lis
 
 export function rollEngines(context: EngineRollContext, opts: RollEnginesOptions): EngineRollResult {
     const d = opts.defaults;
+    const influence = opts.influence ?? null;
     let newSurpriseDC = context.surpriseDC ?? 95;
     let newEncounterDC = context.encounterDC ?? 198;
     let newWorldDC = context.worldEventDC ?? 498;
@@ -91,7 +94,8 @@ export function rollEngines(context: EngineRollContext, opts: RollEnginesOptions
 
     // Tier 1: Surprise Engine (Color/Ambient)
     if (context.surpriseEngineActive !== false) {
-        const roll = Math.floor(Math.random() * 100) + 1;
+        const raw = Math.floor(Math.random() * 100) + 1;
+        const roll = applyDiceInfluence(raw, 100, influence).value;
         if (roll >= newSurpriseDC) {
             const typesList = context.surpriseConfig?.types || d.surpriseTypes;
             const tonesList = context.surpriseConfig?.tones || d.surpriseTones;
@@ -109,7 +113,8 @@ export function rollEngines(context: EngineRollContext, opts: RollEnginesOptions
 
     // Tier 2: Encounter Engine (Challenges/Hooks)
     if (context.encounterEngineActive !== false) {
-        const roll = Math.floor(Math.random() * 200) + 1;
+        const raw = Math.floor(Math.random() * 200) + 1;
+        const roll = applyDiceInfluence(raw, 200, influence).value;
         if (roll >= newEncounterDC) {
             const typesList = context.encounterConfig?.types || d.encounterTypes;
             const tonesList = context.encounterConfig?.tones || d.encounterTones;
@@ -167,19 +172,22 @@ export function rollEngines(context: EngineRollContext, opts: RollEnginesOptions
  *
  * Legacy: if no diceSystem is configured, falls back to the old d20 pool.
  */
-export function rollDiceFairness(context: EngineRollContext): string {
+export function rollDiceFairness(
+    context: EngineRollContext,
+    influence?: DiceInfluence | null,
+): string {
     if (context.diceFairnessActive === false) return '';
 
     // New generalized path
     if (context.diceSystem) {
-        return rollDiceFairnessGeneralized(context.diceSystem);
+        return rollDiceFairnessGeneralized(context.diceSystem, influence ?? null);
     }
 
     // Legacy d20 fallback (old diceConfig thresholds)
     return rollDiceFairnessLegacy(context);
 }
 
-function rollDiceFairnessGeneralized(sys: DiceSystemConfig): string {
+function rollDiceFairnessGeneralized(sys: DiceSystemConfig, influence: DiceInfluence | null = null): string {
     // Pool mode: one singular roll per category. No 3-gate config — the 3-gate
     // model is per-roll (dice me modal / roll_dice tool), not for the permanent
     // pre-roll injection. Just roll the category's die and map to its band.
@@ -187,7 +195,9 @@ function rollDiceFairnessGeneralized(sys: DiceSystemConfig): string {
     for (const cat of sys.categories) {
         const dieType = sys.dieTypes.find(dt => dt.id === cat.dieTypeId);
         if (!dieType) continue;
-        const value = Math.floor(Math.random() * dieType.faces) + 1;
+        const raw = Math.floor(Math.random() * dieType.faces) + 1;
+        const influenced = applyDiceInfluence(raw, dieType.faces, influence);
+        const value = influenced.value;
         const tier = mapTier(value, dieType) ?? 'Unmapped';
         parts.push(`${cat.name.toUpperCase()}=(${value} → ${tier})`);
     }

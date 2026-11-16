@@ -13,8 +13,10 @@ import {
 // lists and its [WORLD_EVENT: …] wording — and re-exports the rest 1:1 so
 // call sites are unchanged.
 
-export { rollDiceFairness, resolveManualRoll, executeGateRoll, parseDiceExpr } from '@narrative/engine';
-export type { EngineRollResult, GateRollResult, ManualRollResult } from '@narrative/engine';
+export { rollDiceFairness, resolveManualRoll, executeGateRoll, parseDiceExpr,
+    applyDiceInfluence, consumeDiceInfluence } from '@narrative/engine';
+export type { EngineRollResult, GateRollResult, ManualRollResult,
+    DiceInfluence, DiceInfluenceMode } from '@narrative/engine';
 
 const DESKTOP_DEFAULTS: EngineDefaultLists = {
     surpriseTypes: DEFAULT_SURPRISE_TYPES,
@@ -31,5 +33,9 @@ const formatWorldTag = ({ who, what, where, why }: WorldTagParts): string =>
     `[WORLD_EVENT: ${who} ${what} ${why} ${where}]`;
 
 export function rollEngines(context: GameContext): EngineRollResult {
-    return engineRollEngines(context, { defaults: DESKTOP_DEFAULTS, formatWorldTag });
+    return engineRollEngines(context, {
+        defaults: DESKTOP_DEFAULTS,
+        formatWorldTag,
+        influence: context.diceInfluence ?? null,
+    });
 }

@@ -88,6 +88,7 @@ export function ChatActionStrip({
     const armedRoll = useAppStore(s => s.armedRoll);
     const setArmedRoll = useAppStore(s => s.setArmedRoll);
     const openDiceRollModal = useAppStore(s => s.openDiceRollModal);
+    const openDiceInfluenceModal = useAppStore(s => s.openDiceInfluenceModal);
     const armedLoot = useAppStore(s => s.armedLoot);
     const openLootRollModal = useAppStore(s => s.openLootRollModal);
     const { t } = useTranslation();
@@ -115,6 +116,7 @@ export function ChatActionStrip({
                         armedRoll,
                         setArmedRoll: setArmedRoll as (v: unknown) => void,
                         openDiceRollModal,
+                        openDiceInfluenceModal,
                         armedLoot,
                         openLootRollModal,
                     });
@@ -180,6 +182,7 @@ function renderComposerBuiltin(id: string, deps: {
     armedRoll: unknown;
     setArmedRoll: (v: unknown) => void;
     openDiceRollModal: () => void;
+    openDiceInfluenceModal: () => void;
     armedLoot: { rolls: number } | null;
     openLootRollModal: () => void;
 }): ReactNode {
@@ -249,6 +252,31 @@ function renderComposerBuiltin(id: string, deps: {
                     <span className="inline xs:hidden">{deps.armedRoll ? 'ARMED' : 'Dice'}</span>
                 </button>
             );
+        case 'diceInfluence': {
+            const inf = deps.context?.diceInfluence ?? null;
+            const chipLabel = !inf
+                ? ''
+                : inf.mode === 'plus'
+                    ? `plus ${inf.value >= 0 ? '+' : ''}${inf.value}`
+                    : `${inf.mode} ${inf.value}`;
+            return (
+                <button
+                    key="diceInfluence"
+                    onClick={deps.openDiceInfluenceModal}
+                    disabled={deps.isStreaming || !deps.activeCampaignId}
+                    className={`flex-shrink-0 flex items-center gap-1.5 bg-void border text-[10px] sm:text-[11px] uppercase tracking-wider px-3 h-[32px] rounded-sm transition-all disabled:opacity-30 disabled:cursor-not-allowed whitespace-nowrap ${
+                        inf
+                            ? 'border-amber-500 text-amber-500 bg-amber-500/10 hover:bg-amber-500/20'
+                            : 'border-terminal/30 text-terminal/60 hover:text-terminal hover:bg-terminal/5'
+                    }`}
+                    title={inf ? `Dice influence active: ${chipLabel}` : 'Steer the engine\'s own dice rolls'}
+                >
+                    <Dices size={13} />
+                    <span className="hidden xs:inline">{inf ? `INFLUENCE ${chipLabel.toUpperCase()}` : 'Influence'}</span>
+                    <span className="inline xs:hidden">{inf ? 'INF' : 'Infl'}</span>
+                </button>
+            );
+        }
         case 'rollLoot':
             return deps.context?.lootTree ? (
                 <button

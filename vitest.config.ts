@@ -14,6 +14,12 @@ export default defineConfig({
         globals: true,
         environment: 'jsdom',
         setupFiles: ['src/test/setup.ts'],
-        include: ['src/**/*.{test,spec}.{js,ts,tsx,jsx}', 'server/__tests__/**/*.test.{js,ts}'],
+        include: [
+            'src/**/*.{test,spec}.{js,ts,tsx,jsx}',
+            'server/__tests__/**/*.test.{js,ts}',
+            // The shared engine is a workspace package; its pure-logic tests run in
+            // the same suite so a change there cannot land untested.
+            'packages/engine/src/**/*.test.{js,ts}',
+        ],
     },
 });

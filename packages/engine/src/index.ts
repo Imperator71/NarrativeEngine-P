@@ -7,6 +7,9 @@ export {
 } from './rolls/engineRolls';
 export type { EngineRollResult, GateRollResult, ManualRollResult } from './rolls/engineRolls';
 
+export { applyDiceInfluence, consumeDiceInfluence } from './rolls/diceInfluence';
+export type { DiceInfluence, DiceInfluenceMode, DiceInfluenceResult } from './rolls/diceInfluence';
+
 export { mapTier, mapTierLegacy, validateBands } from './rolls/diceTier';
 export type { LegacyDiceConfig } from './rolls/diceTier';
 

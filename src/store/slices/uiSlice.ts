@@ -63,6 +63,10 @@ export type UISlice = {
     diceRollModalOpen: boolean;
     openDiceRollModal: () => void;
     closeDiceRollModal: () => void;
+    /** GM dice influence configurator (composer chip). */
+    diceInfluenceModalOpen: boolean;
+    openDiceInfluenceModal: () => void;
+    closeDiceInfluenceModal: () => void;
     // Loot Engine WO-05: armed loot drop config, resolved at send time. Mirrors armedRoll.
     armedLoot: ArmedLoot | null;
     armLoot: (payload: ArmedLoot) => void;
@@ -163,6 +167,9 @@ export const createUISlice: StateCreator<UISlice, [], [], UISlice> = (set) => ({
     diceRollModalOpen: false,
     openDiceRollModal: () => set({ diceRollModalOpen: true }),
     closeDiceRollModal: () => set({ diceRollModalOpen: false }),
+    diceInfluenceModalOpen: false,
+    openDiceInfluenceModal: () => set({ diceInfluenceModalOpen: true }),
+    closeDiceInfluenceModal: () => set({ diceInfluenceModalOpen: false }),
     armedLoot: null,
     armLoot: (payload) => set({ armedLoot: payload }),
     clearArmedLoot: () => set({ armedLoot: null }),
