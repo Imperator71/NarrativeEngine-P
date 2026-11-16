@@ -188,3 +188,57 @@ describe('LLMRequestQueue — rate limiting and recovery', () => {
         expect(second).toBe(true);
     });
 });
+
+describe('LLMRequestQueue — provider-configured concurrency', () => {
+    /**
+     * The endpoint heuristic treats every RFC-1918 address as a single-threaded local
+     * server. That is wrong for a router in front of several backends: the whole turn's
+     * housekeeping then serialises behind one slot. A provider may state its own cap.
+     */
+    it('setInitialConcurrency raises a LAN-sized cap to the configured one', async () => {
+        const q = new LLMRequestQueue(500, 1);
+        q.setInitialConcurrency(3);
+
+        let granted = 0;
+        for (let i = 0; i < 3; i++) q.acquireSlot().then(() => { granted++; });
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(granted).toBe(3);
+    });
+
+    it('setInitialConcurrency ignores a value below one instead of dead-locking the queue', async () => {
+        const q = new LLMRequestQueue(500, 4);
+        q.setInitialConcurrency(0);
+
+        let granted = 0;
+        for (let i = 0; i < 2; i++) q.acquireSlot().then(() => { granted++; });
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(granted).toBe(2); // 0 was rejected; the queue kept its previous cap of 4
+    });
+
+    it('a queue already throttled by a 429 keeps its lower cap', async () => {
+        const q = new LLMRequestQueue(500, 3);
+        await take(q);
+        q.onRateLimitHit();               // cap drops while calls are in flight
+        expect(q.concurrency).toBeLessThan(3);
+
+        q.setInitialConcurrency(3);       // a later call re-states the provider setting
+        expect(q.concurrency).toBeLessThan(3);
+    });
+
+    it('the narration priority outranks utility calls waiting on one slot', async () => {
+        const q = new LLMRequestQueue(500, 1);
+        await take(q);                    // occupy the only slot
+
+        const order: string[] = [];
+        q.acquireSlot('low').then(() => order.push('utility'));
+        q.acquireSlot('high').then(() => order.push('story'));
+        await vi.advanceTimersByTimeAsync(50);
+
+        q.releaseSlot();
+        await vi.advanceTimersByTimeAsync(1000);
+
+        expect(order[0]).toBe('story');
+    });
+});

@@ -52,6 +52,11 @@ export type EndpointConfig = {
     /** NanoGPT / OpenRouter only: 'flex' is cheaper and slower, 'priority' faster
      *  and dearer. Ignored on other hosts. */
     serviceTier?: ServiceTier;
+    /** How many requests this endpoint may run at the same time. Unset falls back to the
+     *  endpoint heuristic in `llmRequestQueue` (LAN addresses → 1, cloud → unbounded).
+     *  Set it when the host can genuinely serve parallel requests (a router in front of
+     *  several backends, a vLLM with batching). */
+    maxConcurrent?: number;
     /** See `LLMProvider.customBody`. */
     customBody?: string;
 };
@@ -91,9 +96,13 @@ export type LLMProvider = {
      *  when a slot has no level of its own. The role getters overwrite it on the copy they return. */
     thinkingEffort?: ThinkingEffort;
     /** The endpoint's maximum output tokens per response. Optional — unset means unknown,
-     * and the thinking reserve stays conservative (see WORKORDER-thinking-token-floor §3.2).
-     * This is an OUTPUT ceiling, not a context window; they are different and much different sizes. */
+     *  and the thinking reserve stays conservative (see WORKORDER-thinking-token-floor §3.2).
+     *  This is an OUTPUT ceiling, not a context window; they are different and much different sizes. */
     maxOutputTokens?: number;
+    /** Max simultaneous HTTP calls to this provider. Unset = endpoint heuristic: LAN hosts
+     *  are treated as single-threaded local servers, cloud hosts as unbounded. Raise it for
+     *  a router or a batched inferencer that can serve several requests at once. */
+    maxConcurrent?: number;
     /** Image providers only: the most prompt characters this model accepts. Unset falls
      *  back to DEFAULT_PORTRAIT_PROMPT_CHARS (services/npc/portraitPrompt.ts). */
     maxImagePromptChars?: number;

@@ -85,8 +85,10 @@ export async function sendMessage(
             fetchUrl = `${fetchUrl}${sep}key=${provider.apiKey}`;
         }
 
-        const queue = getQueueForEndpoint(provider.endpoint);
-        await queue.acquireSlot('normal');
+        const queue = getQueueForEndpoint(provider.endpoint, (provider as EndpointConfig).maxConcurrent);
+        // The narration is the turn's critical path: never let it queue behind utility calls
+        // that the player does not need in order to see this reply.
+        await queue.acquireSlot('high');
         try {
             const body = JSON.stringify(payload);
             if (!controller.signal.aborted) {

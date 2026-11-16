@@ -103,8 +103,8 @@ async function runInner(
 
     if (opts?.temperature !== undefined) body.temperature = opts.temperature;
 
-    const priority = opts?.priority ?? 'normal';
-    const queue = getQueueForEndpoint(provider.endpoint);
+    const priority = opts?.priority ?? 'low';
+    const queue = getQueueForEndpoint(provider.endpoint, (provider as EndpointConfig).maxConcurrent);
 
     let fetchUrl = url;
     if (format === 'gemini' && provider.apiKey) {

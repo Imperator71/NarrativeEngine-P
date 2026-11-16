@@ -135,7 +135,7 @@ export async function describeImage(
         : ownAbort.signal;
     handle.deadlinePromise.then(() => ownAbort.abort()).catch(() => { /* settled */ });
 
-    const queue = getQueueForEndpoint(provider.endpoint);
+    const queue = getQueueForEndpoint(provider.endpoint, (provider as EndpointConfig).maxConcurrent);
     await queue.acquireSlot('normal');
     try {
         const res = await llmFetch(url, { method: 'POST', headers, body: JSON.stringify(body), signal }, handle);
@@ -206,7 +206,7 @@ export async function captionImage(
     const signal = opts?.signal ? AbortSignal.any([opts.signal, ownAbort.signal]) : ownAbort.signal;
     handle.deadlinePromise.then(() => ownAbort.abort()).catch(() => { /* settled */ });
 
-    const queue = getQueueForEndpoint(provider.endpoint);
+    const queue = getQueueForEndpoint(provider.endpoint, (provider as EndpointConfig).maxConcurrent);
     await queue.acquireSlot('normal');
     try {
         const res = await llmFetch(url, { method: 'POST', headers: buildChatHeaders(provider), body: JSON.stringify(body), signal }, handle);

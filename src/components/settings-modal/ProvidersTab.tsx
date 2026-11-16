@@ -84,6 +84,14 @@ export function ProvidersTab() {
         });
     };
 
+    const handleParallelChange = (rawValue: string) => {
+        if (!activeProvider) return;
+        const parsed = Number(rawValue.trim());
+        updateProvider(activeProvider.id, {
+            maxConcurrent: rawValue.trim() !== '' && Number.isFinite(parsed) && parsed >= 1 ? Math.floor(parsed) : undefined,
+        });
+    };
+
     const handleImagePromptLimitChange = (rawValue: string) => {
         if (!activeProvider) return;
         const parsed = Number(rawValue.trim());
@@ -346,6 +354,25 @@ export function ProvidersTab() {
                                         />
                                         <p className="text-[10px] text-text-dim mt-1 leading-relaxed">
                                             Maximum tokens this endpoint can return in one response  -  <strong>not its context window</strong>. Leave blank if unsure; the app stays conservative when reasoning is enabled.
+                                        </p>
+                                    </div>
+                                )}
+                                {!isComfy && (
+                                    <div>
+                                        <label className="block text-[11px] text-text-dim uppercase tracking-wider mb-1">
+                                            Parallel requests
+                                        </label>
+                                        <input
+                                            type="number"
+                                            min={1}
+                                            step={1}
+                                            value={config.maxConcurrent ?? ""}
+                                            onChange={(e) => handleParallelChange(e.target.value)}
+                                            placeholder="Automatic"
+                                            className="w-full bg-surface border border-border px-3 py-2 text-sm text-text-primary placeholder:text-text-dim/40 font-mono focus:border-terminal focus:outline-none"
+                                        />
+                                        <p className="text-[10px] text-text-dim mt-1 leading-relaxed">
+                                            How many requests may run against this provider at once. Blank uses the default: one at a time on a LAN address, unlimited in the cloud. Set 2–4 when the host is a router or a batched server that can serve several at once  -  a turn's housekeeping calls then run alongside the narration instead of queueing behind it.
                                         </p>
                                     </div>
                                 )}

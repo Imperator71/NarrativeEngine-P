@@ -34,7 +34,7 @@ type Waiter = { priority: LLMCallPriority; wake: () => void };
 export class LLMRequestQueue {
     private inflight = 0;
     private maxConcurrent: number;
-    private readonly initialMaxConcurrent: number;
+    private initialMaxConcurrent: number;
     private queue: Waiter[] = [];
     private lastFireTime = 0;
     private readonly staggerMs: number;
@@ -77,6 +77,25 @@ export class LLMRequestQueue {
     releaseSlot(): void {
         this.inflight = Math.max(0, this.inflight - 1);
         this.scheduleDrain();
+    }
+
+    /**
+     * Set the concurrency this queue starts (and recovers) at. Callers use it when they
+     * know better than the endpoint heuristic — e.g. a LAN router that can serve several
+     * requests at once. In-flight calls are left alone; the new cap applies on the next drain.
+     */
+    setInitialConcurrency(n: number): void {
+        const cap = Math.floor(n);
+        if (!Number.isFinite(cap) || cap < 1) return;
+        // A queue already throttled by a 429 keeps its lower cap until it recovers.
+        const throttled = this.maxConcurrent !== this.initialMaxConcurrent;
+        this.initialMaxConcurrent = cap;
+        if (!throttled) this.maxConcurrent = cap;
+    }
+
+    /** Current concurrency cap (tests and the debug panel). */
+    get concurrency(): number {
+        return this.maxConcurrent;
     }
 
     /**
@@ -131,7 +150,6 @@ export class LLMRequestQueue {
         // Only one pending setTimeout at a time
         if (this.scheduled) return;
         if (this.queue.length === 0 || this.inflight >= this.maxConcurrent) return;
-
         // Stagger only while a rate limit is actually in force.
         //
         // The gap exists so a burst of enqueues does not hit a provider in the
@@ -201,13 +219,20 @@ function isLocalEndpoint(raw: string): boolean {
 
 const _endpointQueues = new Map<string, LLMRequestQueue>();
 
-export function getQueueForEndpoint(endpoint: string): LLMRequestQueue {
+export function getQueueForEndpoint(endpoint: string, maxConcurrent?: number): LLMRequestQueue {
     const key = normalizeEndpointKey(endpoint);
     if (!_endpointQueues.has(key)) {
         const local = isLocalEndpoint(endpoint);
-        const q = local ? new LLMRequestQueue(500, 1) : new LLMRequestQueue(500);
-        console.log(`[LLMQueue] New queue for "${key}" — ${local ? 'local (maxConcurrent=1)' : 'cloud (unbounded)'}`);
+        // An explicit provider setting wins over the address heuristic: a LAN host is not
+        // necessarily single-threaded (a router in front of several backends is not).
+        const cap = maxConcurrent !== undefined && Number.isFinite(maxConcurrent) && maxConcurrent >= 1
+            ? Math.floor(maxConcurrent)
+            : (local ? 1 : undefined);
+        const q = new LLMRequestQueue(500, cap);
+        console.log(`[LLMQueue] New queue for "${key}" — ${cap === undefined ? 'cloud (unbounded)' : `cap ${cap}`}${local ? ' · LAN' : ''}`);
         _endpointQueues.set(key, q);
+    } else if (maxConcurrent !== undefined && Number.isFinite(maxConcurrent) && maxConcurrent >= 1) {
+        _endpointQueues.get(key)!.setInitialConcurrency(Math.floor(maxConcurrent));
     }
     return _endpointQueues.get(key)!;
 }
