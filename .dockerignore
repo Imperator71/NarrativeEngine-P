@@ -5,9 +5,9 @@ node_modules
 packages/*/node_modules
 packages/engine/dist
 
-# Runtime/user data — never part of an image
+# Runtime/user data — never part of an image. `mods/` stays in the context: it
+# holds the bundled example mods that the engine's tests import and type-check.
 data
-mods
 public/assets/portraits
 
 # Build + test output
