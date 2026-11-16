@@ -25,7 +25,9 @@ RUN apt-get update \
 
 # Dependency manifests first: this layer only changes when dependencies do.
 COPY package.json package-lock.json ./
-COPY packages/engine/package.json ./packages/engine/package.json
+# The engine is a file: dependency whose prepare script runs its own build, so
+# its full source (tsconfig, src) has to be present before npm ci.
+COPY packages/engine ./packages/engine
 # package.json pins allowScripts, so npm actually runs the install scripts for
 # better-sqlite3 / esbuild / onnxruntime-node. Without them `npm ci` leaves the
 # native modules unbuilt and the server cannot load sqlite-vec.
