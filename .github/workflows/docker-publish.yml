@@ -27,7 +27,8 @@ jobs:
       # The app's own version as an immutable tag: a moving branch tag cannot tell
       # a running container which build it holds, nor be pinned in a compose file.
       - id: pkg
-        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+        run: |
+          node -e "console.log('version=' + require('./package.json').version)" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         with:
