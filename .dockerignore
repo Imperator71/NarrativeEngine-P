@@ -1,0 +1,34 @@
+# Build context hygiene. Without this file `COPY . .` drags the host's
+# node_modules (1.1 GB) into the image on top of the container's own install,
+# which is where the 1.1 GB layer in the old image came from.
+node_modules
+packages/*/node_modules
+packages/engine/dist
+
+# Runtime/user data — never part of an image
+data
+mods
+public/assets/portraits
+
+# Build + test output
+dist
+coverage
+playwright-report
+test-results
+
+# Not needed to build the server image
+.git
+.github
+e2e
+mobile
+Upgrade
+Example_Setup
+
+# Local noise
+.DS_Store
+.vscode
+.idea
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

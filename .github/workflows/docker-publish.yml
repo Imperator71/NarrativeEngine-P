@@ -24,6 +24,10 @@ jobs:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # The app's own version as an immutable tag: a moving branch tag cannot tell
+      # a running container which build it holds, nor be pinned in a compose file.
+      - id: pkg
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
       - id: meta
         uses: docker/metadata-action@v5
         with:
@@ -33,6 +37,7 @@ jobs:
             # Branch pushes also publish `:server-auth`, which is what the
             # parallel TrueNAS deployment pulls.
             type=ref,event=branch
+            type=raw,value=${{ steps.pkg.outputs.version }}
             type=sha,format=short
       - uses: docker/build-push-action@v6
         with:
@@ -40,3 +45,8 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          # Layer cache in the Actions cache: an app-only change re-uses the
+          # dependency layers instead of rebuilding them, which keeps the pushed
+          # delta small — the old workflow rebuilt everything on every push.
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
