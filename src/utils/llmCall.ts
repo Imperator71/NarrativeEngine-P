@@ -36,42 +36,87 @@ export async function llmCall(
         timeoutMs?: number;
     }
 ): Promise<string> {
-    if (!opts?.trackingLabel || !opts?.timeoutMs) {
+    const timeoutMs = typeof opts?.timeoutMs === 'number' && opts.timeoutMs > 0 ? opts.timeoutMs : 0;
+    // Tracking and the deadline are separate concerns: tracking is the UI strip, the
+    // deadline is correctness. A timeoutMs without a trackingLabel used to be ignored
+    // outright, so such a call could hang forever.
+    if (!timeoutMs) {
         return runInner(provider, prompt, opts);
     }
 
-    const label = opts.trackingLabel;
+    const label = opts?.trackingLabel;
     const trackingName = (provider as EndpointConfig).modelName || provider.endpoint;
-    const handle = startUtilityCall(label, trackingName, opts.timeoutMs, 'utility');
+    const handle = label ? startUtilityCall(label, trackingName, timeoutMs, 'utility') : null;
     const startedAt = Date.now();
 
     // Wire abort: when the deadline elapses, cancel the in-flight fetch too.
     const ownAbort = new AbortController();
-    const combinedSignal = opts.signal
+    const combinedSignal = opts?.signal
         ? AbortSignal.any([opts.signal, ownAbort.signal])
         : ownAbort.signal;
 
-    const inner = runInner(provider, prompt, { ...opts, signal: combinedSignal }, handle);
+    // The deadline armed at start covers the queue wait, so a jammed queue cannot
+    // make a call wait forever. `armForCall` then grants the model its full budget
+    // once the request actually has a slot — see runInner.
+    let deadlinePromise: Promise<void>;
+    let armForCall: () => void;
+    if (handle) {
+        deadlinePromise = handle.deadlinePromise;
+        armForCall = () => handle.armForCall();
+    } else {
+        // Mirrors the tracker's re-checking deadline: the promise only resolves when
+        // the clock has genuinely run out, so moving the deadline forward (armForCall)
+        // keeps the same promise pending instead of settling it early.
+        let deadline = Date.now() + timeoutMs;
+        let wake: (() => void) | null = null;
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        deadlinePromise = (async () => {
+            for (;;) {
+                const remaining = deadline - Date.now();
+                if (remaining <= 0) return;
+                await new Promise<void>(resolve => {
+                    wake = resolve;
+                    timer = setTimeout(resolve, remaining);
+                });
+                if (timer) clearTimeout(timer);
+                wake = null;
+            }
+        })();
+        armForCall = () => {
+            deadline = Date.now() + timeoutMs;
+            if (wake) {
+                if (timer) clearTimeout(timer);
+                const resume = wake;
+                wake = null;
+                resume();
+            }
+        };
+    }
+
+    const inner = runInner(provider, prompt, { ...opts, signal: combinedSignal }, handle ?? undefined, armForCall);
 
     try {
         const result = await Promise.race([
             inner.then(v => ({ kind: 'ok' as const, value: v })),
-            handle.deadlinePromise.then(() => ({ kind: 'timeout' as const })),
+            deadlinePromise.then(() => ({ kind: 'timeout' as const })),
         ]);
 
         if (result.kind === 'timeout') {
             ownAbort.abort();
-            handle.settleError('timeout');
-            throw new UtilityTimeoutError(Date.now() - startedAt, label);
+            // The aborted fetch rejects after the race has already settled; without
+            // this the rejection surfaces as an unhandled promise.
+            void inner.catch(() => { /* aborted by the deadline */ });
+            handle?.settleError('timeout');
+            throw new UtilityTimeoutError(Date.now() - startedAt, label ?? 'utility call');
         }
 
-        handle.settleSuccess();
+        handle?.settleSuccess();
         return result.value;
     } catch (e) {
         // If inner threw before deadline, record it.
         if (!(e instanceof UtilityTimeoutError)) {
             const msg = e instanceof Error ? e.message : String(e);
-            handle.settleError('error', msg);
+            handle?.settleError('error', msg);
         }
         throw e;
     }
@@ -89,6 +134,7 @@ async function runInner(
         trackingLabel?: string;
     },
     call?: UtilityCallHandle,
+    onSlotAcquired?: () => void,
 ): Promise<string> {
     const url = getChatUrl(provider);
     const headers = buildChatHeaders(provider);
@@ -114,6 +160,10 @@ async function runInner(
 
     for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
         await queue.acquireSlot(priority);
+        // The request is about to leave: start the model's own clock now, so queue
+        // wait is not charged against the timeout budget. Only the first attempt
+        // re-arms; retries share whatever remains.
+        if (attempt === 0) onSlotAcquired?.();
 
         let res: Response;
         try {

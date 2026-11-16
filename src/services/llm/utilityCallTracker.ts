@@ -50,6 +50,13 @@ export type UtilityCallHandle = {
     extend: (ms?: number) => void;
     /** Reset the deadline to now + ms (for streaming calls with a rolling idle timeout). No-op if settled. */
     resetDeadline: (ms: number) => void;
+    /**
+     * Re-arm the deadline for the actual work: now + the original timeout.
+     * Queue wait must not be charged to the model's budget — with a single-slot
+     * endpoint a utility call could spend its whole allowance waiting behind a
+     * long narration and then "time out" on a model that was never slow.
+     */
+    armForCall: () => void;
     /** Mark success. Records duration + moves to history. */
     settleSuccess: (verbose?: Record<string, unknown>) => void;
     /** Mark failure (error or timeout). */
@@ -147,6 +154,19 @@ export function startUtilityCall(
             const updated: UtilityCallRecord = {
                 ...cur,
                 deadline: now + ms,
+            };
+            active = active.map(c => (c.id === id ? updated : c));
+            emit();
+            notifyDeadline(id);
+        },
+        armForCall() {
+            const idx = active.findIndex(c => c.id === id);
+            if (idx === -1) return;
+            const cur = active[idx];
+            if (cur.status !== 'running') return;
+            const updated: UtilityCallRecord = {
+                ...cur,
+                deadline: Date.now() + cur.initialTimeoutMs,
             };
             active = active.map(c => (c.id === id ? updated : c));
             emit();

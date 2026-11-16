@@ -58,12 +58,16 @@ Work in this order:
    rejected, one clause each. If the room presses on none of them, say so; a
    quiet scene is allowed to be quiet.
 
-3. What does {name} want from THIS moment — not from {target} in general, not
-   from their life. From the next five minutes. Specific enough that it implies
-   behaviour.
+3. What {name} is doing in this beat — the next few minutes, not their life.
+   Working, waiting, leaving, finishing a sentence, refusing to move. It is
+   normal for this to have nothing to do with {target}. If their want is simply
+   "finish my shift", write that.
 
-4. What are they concealing. What will they refuse. What do they believe about
-   {target} that may simply be wrong.
+4. What, IF ANYTHING, they are concealing right now. Only a fact that bears on
+   this room and that they have a reason to keep back. Most people are hiding
+   nothing at any given moment — if that is true here, return an empty string.
+   Then: what will they refuse, and what do they believe about {target} that may
+   simply be wrong.
 
 5. Their manner comes from how they have ACTUALLY behaved toward {target} above
    — not from a personality label. Then: how far does this room push them past
@@ -81,9 +85,13 @@ RULES — these are what make the output usable:
   is added back for you.
 - {name} is not omniscient about {target}. Anything they believe about
   {target}'s motives is a belief, marked as one, and allowed to be wrong.
+- A stance is not a plot hook. Do not manufacture a secret, an offer, a bargain,
+  a wager, or a trade so that {name} has business with {target}. If they have no
+  business with {target} in this moment, they have none — say so, and let the
+  scene be quiet.
 - They never name their own contradiction aloud. It shows in what they do.
 
-Return JSON only:
+Return JSON only (hiding may be ""):
 {"wants_now":"", "hiding":"", "wont":"", "in_tension":["#123","#298"],
  "believes":"", "manner":"", "strain":"", "considered":[""],
  "read_room_as":""}`;
@@ -508,8 +516,10 @@ export function renderRelationshipStanceBlock(
         ];
         if (stance.stance) {
             lines.push(
-                `wants now: ${stance.stance.wantsNow}`,
-                `hiding: ${stance.stance.hiding}`,
+                ...(stance.stance.wantsNow ? [`wants now: ${stance.stance.wantsNow}`] : []),
+                // An empty `hiding` means "nothing worth keeping back" — printing the
+                // label with no value reads to the writer as a blank to fill in.
+                ...(stance.stance.hiding ? [`hiding: ${stance.stance.hiding}`] : []),
                 `won't: ${stance.stance.wont}`,
                 `in tension:\n  ${stance.stance.inTension.join('\n  ') || 'none'}`,
                 `believes (may be wrong): ${stance.stance.believes}`,
