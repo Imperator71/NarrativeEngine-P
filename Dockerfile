@@ -2,18 +2,19 @@
 #
 # Two stages on purpose.
 #
-#  builder      — dev dependencies, the TypeScript compiler and the frontend
-#                  bundler. Nothing here reaches the runtime image except its
-#                  build output.
-#  runtime-deps — a production-only `npm ci` (better-sqlite3 and
-#                  onnxruntime-node need python3/make/g++ while installing, so
-#                  the toolchain lives here and nowhere else).
-#  runtime      — node + production node_modules + the built server and bundle.
+#  builder — dev dependencies, the TypeScript compiler, the frontend bundler.
+#            Builds the engine package and the frontend bundle, then PRUNES the
+#            dev dependencies: `tsc` must exist while building the `file:`
+#            engine dependency (its `prepare` script runs `npm run build`), so
+#            a separate `npm ci --omit=dev` stage would fail with `tsc: not
+#            found`.
+#  runtime — node, the pruned production node_modules, and the build output.
+#            No compiler, no bundler, no toolchain.
 #
-# Before this split every source edit invalidated one layer that held the whole
-# node_modules tree (dev deps included), so a rebuild uploaded ~1.1 GB again and
-# the pulled image was ~1.4 GB. Now an app-only change rebuilds just the dist
-# and server layers.
+# Before this split every source edit invalidated one layer holding the whole
+# node_modules tree (dev deps included) and a rebuild re-uploaded ~1.1 GB; with
+# no .dockerignore the host's node_modules rode along too. The pulled image was
+# ~1.4 GB.
 
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
@@ -37,16 +38,9 @@ RUN npm run build --prefix packages/engine
 # so Caddy forwards one origin and there is no dev server in the image.
 RUN npm run build
 
-FROM node:22-bookworm-slim AS runtime-deps
-WORKDIR /app
-
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 make g++ \
-  && rm -rf /var/lib/apt/lists/*
-
-COPY package.json package-lock.json ./
-COPY packages/engine/package.json ./packages/engine/package.json
-RUN npm ci --omit=dev
+# Production dependencies only. Runs after the builds, so the toolchain the
+# engine's `prepare` script needs is still present; nothing here re-compiles.
+RUN npm prune --omit=dev
 
 FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
@@ -54,10 +48,9 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 
-# Production dependencies only. `@narrative/engine` is a file: dependency, so
-# node_modules carries a symlink to /app/packages/engine — that directory is
-# provided below, and only its dist is needed at runtime.
-COPY --from=runtime-deps /app/node_modules ./node_modules
+# `@narrative/engine` is a file: dependency, so node_modules carries a symlink to
+# /app/packages/engine — that directory is provided below with its built dist.
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json /app/package-lock.json ./
 COPY --from=builder /app/server.js ./
 COPY --from=builder /app/server ./server
