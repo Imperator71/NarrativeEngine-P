@@ -42,7 +42,7 @@ export async function llmCall(
 
     const label = opts.trackingLabel;
     const trackingName = (provider as EndpointConfig).modelName || provider.endpoint;
-    const handle = startUtilityCall(label, trackingName, opts.timeoutMs);
+    const handle = startUtilityCall(label, trackingName, opts.timeoutMs, 'utility');
     const startedAt = Date.now();
 
     // Wire abort: when the deadline elapses, cancel the in-flight fetch too.

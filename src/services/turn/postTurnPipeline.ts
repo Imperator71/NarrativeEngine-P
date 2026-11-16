@@ -105,7 +105,7 @@ export async function runPostTurnPipeline(
     // retry after a lost response re-links the existing scene instead of writing
     // a second copy of it.
     options?: { verifyExistingScene?: boolean },
-): Promise<{ archived: boolean }> {
+): Promise<{ archived: boolean; idle: Promise<void> }> {
     // WO-P1-03: thread-only seam. Acknowledge the param is intentionally
     // threaded but not yet consumed — Project 4 will read bus fields here.
     // The void reference keeps lint happy without changing behaviour.
@@ -133,39 +133,45 @@ export async function runPostTurnPipeline(
         activeCampaignId,
     };
 
-    const results = await Promise.allSettled([
-        runArchiveTrack(state, callbacks, displayInput, lastAssistantContent, allMsgs, activeCampaignId, options?.verifyExistingScene === true, facade),
-        ...startPostTurnTracks(trackCtx, state.settings),
-    ]);
+    // 2.5.0 — phase split. The archive append is the only post-turn work the next turn
+    // cannot proceed without: it stamps the scene id and decides whether the turn may be
+    // retired. Everything else is `idle` — started now, awaited by nobody on the critical
+    // path, free to finish while the player reads the reply and types the next line.
+    const idleTracks = Promise.allSettled(startPostTurnTracks(trackCtx, state.settings));
 
+    const archiveResult = (await Promise.allSettled([
+        runArchiveTrack(state, callbacks, displayInput, lastAssistantContent, allMsgs, activeCampaignId, options?.verifyExistingScene === true, facade),
+    ]))[0];
     // Durable-commit v1: the archive track's verdict is the one the caller acts on.
     // A rejected track (thrown) counts as not-archived — the conservative answer.
-    const archiveResult = results[0];
     const archived = archiveResult.status === 'fulfilled' && archiveResult.value === true;
 
-    const sequentialTrackPromises = startSequentialTracks({
-        state,
-        facade,
-        callbacks,
-        lastAssistantContent,
-        onStageIds: [],
-        npcLedger,
-        settings: state.settings,
-        activeCampaignId,
-    });
-
-    for (const r of results) {
-        if (r.status === 'rejected') {
-            console.warn('[PostTurn] Track failed:', r.reason);
+    const idle = (async () => {
+        const results = await idleTracks;
+        for (const r of results) {
+            if (r.status === 'rejected') {
+                console.warn('[PostTurn] Track failed:', r.reason);
+            }
         }
-    }
 
-    await Promise.allSettled(sequentialTrackPromises);
+        const sequentialTrackPromises = startSequentialTracks({
+            state,
+            facade,
+            callbacks,
+            lastAssistantContent,
+            onStageIds: [],
+            npcLedger,
+            settings: state.settings,
+            activeCampaignId,
+        });
 
-    // ── Arc Engine Tick ──
-    // Arc tick has no in-tree track; it is registered dynamically (see tracks/index.ts:29-34).
+        await Promise.allSettled(sequentialTrackPromises);
 
-    return { archived };
+        // ── Arc Engine Tick ──
+        // Arc tick has no in-tree track; it is registered dynamically (see tracks/index.ts:29-34).
+    })();
+
+    return { archived, idle };
 }
 
 

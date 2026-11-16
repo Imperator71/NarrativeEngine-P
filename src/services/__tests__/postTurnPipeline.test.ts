@@ -43,6 +43,19 @@ vi.mock('../characterProfileParser', () => ({ scanCharacterProfile: vi.fn() }));
 vi.mock('../inventoryParser', () => ({ scanInventory: vi.fn() }));
 
 import { runPostTurnPipeline } from '../turn/postTurnPipeline';
+
+/**
+ * 2.5.0 — `runPostTurnPipeline` now returns as soon as the scene is archived and hands
+ * the housekeeping back as `idle`. A test that asserts a track's effect must await that
+ * promise; the production turn deliberately does not.
+ */
+async function runPipeline(
+    ...args: Parameters<typeof runPostTurnPipeline>
+): ReturnType<typeof runPostTurnPipeline> {
+    const result = await runPostTurnPipeline(...args);
+    await result.idle;
+    return result;
+}
 import { api } from '../llm/apiClient';
 import { backgroundQueue } from '../infrastructure/backgroundQueue';
 import { extractNPCNames, validateNPCCandidates, classifyNPCNames } from '../npc/npcDetector';
@@ -124,7 +137,7 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce([]);
 
         const state = makeState();
-        await runPostTurnPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(mockApi.archive.append).toHaveBeenCalledWith(
             'campaign-1',
@@ -151,9 +164,9 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.archive.getIndex).mockResolvedValueOnce([]); // verification: nothing there
 
         const callbacks = makeCallbacks();
-        const result = await runPostTurnPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
+        const result = await runPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
 
-        expect(result).toEqual({ archived: false });
+        expect(result.archived).toBe(false);
         expect(callbacks.setArchiveIndex).not.toHaveBeenCalled();
     });
 
@@ -164,9 +177,9 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce([]);
 
         const callbacks = makeCallbacks();
-        const result = await runPostTurnPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
+        const result = await runPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
 
-        expect(result).toEqual({ archived: true });
+        expect(result.archived).toBe(true);
         expect(callbacks.updateLastAssistantMessage).toHaveBeenCalledWith({ sceneId: '001' });
     });
 
@@ -176,12 +189,12 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce([]);
 
         const callbacks = makeCallbacks();
-        const result = await runPostTurnPipeline(
+        const result = await runPipeline(
             makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS, undefined, { verifyExistingScene: true },
         );
 
         expect(mockApi.archive.append).not.toHaveBeenCalled();
-        expect(result).toEqual({ archived: true });
+        expect(result.archived).toBe(true);
         expect(callbacks.updateLastAssistantMessage).toHaveBeenCalledWith({ sceneId: '001' });
     });
 
@@ -192,7 +205,7 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce([]);
 
         const callbacks = makeCallbacks();
-        await runPostTurnPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(callbacks.setArchiveIndex).toHaveBeenCalledWith(freshIndex);
     });
@@ -203,7 +216,7 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce(freshChapters);
 
         const state = makeState();
-        await runPostTurnPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(state.setChapters).toHaveBeenCalledWith(freshChapters);
     });
@@ -214,7 +227,7 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.archive.append).mockResolvedValueOnce({ sceneId: '025' });
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce([openChapter]);
 
-        await runPostTurnPipeline(makeState(), makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(makeState(), makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(mockBQ.push).toHaveBeenCalledWith('Chapter-AutoSeal', expect.any(Function));
     });
@@ -224,7 +237,7 @@ describe('runPostTurnPipeline', () => {
         vi.mocked(mockApi.archive.append).mockResolvedValueOnce({ sceneId: '003' });
         vi.mocked(mockApi.chapters.list).mockResolvedValueOnce([openChapter]);
 
-        await runPostTurnPipeline(makeState(), makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(makeState(), makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
 
         const autoSealCalls = vi.mocked(mockBQ.push).mock.calls.filter(c => c[0] === 'Chapter-AutoSeal');
         expect(autoSealCalls).toHaveLength(0);
@@ -239,7 +252,7 @@ describe('runPostTurnPipeline', () => {
         mockClassifyNPCNames.mockReturnValueOnce({ newNames: ['Kaelen'], existingNpcs: [] });
 
         const callbacks = makeCallbacks();
-        await runPostTurnPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(callbacks.addNpcSuggestions).toHaveBeenCalledWith(['Kaelen'], ASSISTANT_CONTENT);
         const npcGenCalls = vi.mocked(mockBQ.push).mock.calls.filter(c => c[0] === 'NPC-Gen:Kaelen');
@@ -256,7 +269,7 @@ describe('runPostTurnPipeline', () => {
             resetBookkeepingTurnCounter: vi.fn(),
         });
 
-        await runPostTurnPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(state.incrementBookkeepingTurnCounter).toHaveBeenCalled();
         expect(state.resetBookkeepingTurnCounter).toHaveBeenCalled();
@@ -274,7 +287,7 @@ describe('runPostTurnPipeline', () => {
             resetBookkeepingTurnCounter: vi.fn(),
         });
 
-        await runPostTurnPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
+        await runPipeline(state, makeCallbacks(), ASSISTANT_CONTENT, ALL_MSGS);
 
         expect(state.resetBookkeepingTurnCounter).not.toHaveBeenCalled();
     });
@@ -324,7 +337,7 @@ describe('compute mod integration', () => {
 
         try {
             const callbacks = makeCallbacks();
-            await runPostTurnPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
+            await runPipeline(makeState(), callbacks, ASSISTANT_CONTENT, ALL_MSGS);
             expect(callbacks.updateContext).toHaveBeenCalledWith({ currentFeature: 'computed' });
         } finally {
             postTurnTracks.unregister(track.id);

@@ -14,6 +14,7 @@ import { saveCampaignState } from '../../store/campaignStore';
 import { API_BASE } from '../../lib/apiBase';
 import { buildHostFacade, hasHostModelRole } from './hostFacade';
 import { emitCoreEvent, emitCoreEventLazy } from '../mods/events';
+import { setTurnPhase, summarizeTurn, formatTurnSummary, getCurrentTurnLedger } from '../llm/turnLedger';
 
 // ── In-memory snapshot ─────────────────────────────────────────────────
 // Lost on crash — that's OK. Relaunch reconciliation rebuilds from the live
@@ -401,6 +402,9 @@ async function runCommitPendingTurn(): Promise<void> {
     // backup restore all found no marker and no-op'd, and the scene was gone.
     let archived = false;
     try {
+        // 2.5.0 — from here on, model calls are housekeeping: the reply is already on
+        // screen and the player is reading. The ledger keeps the two apart.
+        setTurnPhase('idle');
         // WO-P1-03: pass the bus (carried by the snapshot across the commit
         // boundary) to the post-turn pipeline. Thread-only — the pipeline does
         // NOT yet read it; Project 4 will swap selected reads to bus fields.
@@ -411,6 +415,12 @@ async function runCommitPendingTurn(): Promise<void> {
         // A pipeline that reports nothing (older signature / test doubles) is taken
         // at its word: only an explicit `archived: false` blocks retirement.
         archived = result?.archived !== false;
+
+        // 2.5.0 — the idle tracks are deliberately NOT awaited. The turn retires as soon
+        // as the scene is in long-term memory; stakes, location, NPC scans, relationship
+        // memory and chapter sealing finish while the player reads the reply. Before this,
+        // `handleSend` awaited the whole commit, so the next turn queued behind them.
+        void result?.idle?.catch?.(e => console.warn('[Commit] idle track failed:', e));
 
         // Auto-condense check — moved to commit (was in the orchestrator completion callback).
         if (commitState.settings.autoCondenseEnabled) {
@@ -478,6 +488,11 @@ async function runCommitPendingTurn(): Promise<void> {
         messageId: pendingMsg.id,
         sceneId: useAppStore.getState().messages?.find(m => m.id === pendingMsg.id)?.sceneId ?? '',
     }));
+
+    // 2.5.0 — one line in the debug console: what this turn cost, split by whether the
+    // player was waiting for it. The scoreboard for the pipeline work.
+    const summary = summarizeTurn(getCurrentTurnLedger());
+    if (summary && commitState.settings.debugMode) console.log(formatTurnSummary(summary));
 }
 
 // ── Message-state transitions (shared by commit + the recovery sweep) ───

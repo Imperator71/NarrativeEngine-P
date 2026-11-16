@@ -17,6 +17,7 @@ import {
 } from './turnStages';
 import { hasPromptInterceptors } from '../mods/interceptors';
 import { hasFactPublishers } from '../mods/facts';
+import { beginTurnLedger } from '../llm/turnLedger';
 
 export type TurnCallbacks = {
     onCheckingNotes: (checking: boolean) => void;
@@ -208,6 +209,11 @@ export async function runTurn(
     // (turnContextGolden.test.ts) are the byte-identical guard.
     resolveEngineRolls(ctx, state, callbacks);
     addUserTurnMessage(ctx, callbacks);
+
+    // 2.5.0 — the turn ledger. Every model call is filed against this turn with the
+    // phase it started in, so "how many requests does a turn cost" is a number rather
+    // than an argument. `critical` until the narration is under way; `idle` after.
+    beginTurnLedger(ctx.turnId, state.activeCampaignId ?? null, facade.config.aiTier);
 
     await gatherTurnContext(ctx, state, callbacks, abortController.signal, facade);
     if (abortController.signal.aborted) return;

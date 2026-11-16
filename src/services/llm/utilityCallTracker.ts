@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { uid } from '../../utils/uid';
+import { getTurnPhase, noteTurnCall, type TurnCallPhase, type TurnCallRole } from './turnLedger';
 
 export type UtilityCallStatus = 'running' | 'success' | 'timeout' | 'error' | 'aborted';
 
@@ -20,6 +21,9 @@ export type UtilityCallRecord = {
 };
 
 const MAX_HISTORY = 50;
+
+/** Role + start phase per in-flight call, for the turn ledger. */
+const callMeta = new Map<string, { role: TurnCallRole; phase: TurnCallPhase }>();
 
 let active: UtilityCallRecord[] = [];
 let history: UtilityCallRecord[] = [];
@@ -56,9 +60,14 @@ export function startUtilityCall(
     label: string,
     endpointName: string,
     timeoutMs: number,
+    role: TurnCallRole = 'unknown',
 ): UtilityCallHandle {
     const id = uid();
     const now = Date.now();
+    // The phase is captured at start, not at settle: a call that begins before the
+    // narration is critical even if it finishes after it.
+    const phase: TurnCallPhase = getTurnPhase();
+    callMeta.set(id, { role, phase });
     const record: UtilityCallRecord = {
         id,
         label,
@@ -174,6 +183,22 @@ function settle(
     };
     active = active.filter(c => c.id !== id);
     history = [finalRecord, ...history].slice(0, MAX_HISTORY);
+
+    // Turn ledger: this is the one place every model call settles, so it is the only
+    // place that has to report. A missing meta entry means the call predates the turn.
+    const meta = callMeta.get(id);
+    callMeta.delete(id);
+    if (meta) {
+        noteTurnCall({
+            label: cur.label,
+            role: meta.role,
+            phase: meta.phase,
+            endpointName: cur.endpointName,
+            startedAt: cur.startedAt,
+            durationMs: finalRecord.durationMs ?? 0,
+            status: status === 'running' ? 'error' : status,
+        });
+    }
 
     // Wake any waiters so deadlinePromise loop exits via the "settled externally" branch
     notifyDeadline(id);

@@ -50,7 +50,7 @@ export async function sendMessage(
     const { useAppStore } = await import('../../store/useAppStore');
     // Snapshot the global preference for this request, including every idle reset.
     const idleTimeoutMs = normalizeStoryTimeoutSeconds(useAppStore.getState().settings.storyTimeoutSeconds) * 1000;
-    const trackerHandle = startUtilityCall(label, trackingName, idleTimeoutMs);
+    const trackerHandle = startUtilityCall(label, trackingName, idleTimeoutMs, 'story');
     let streamTimedOut = false;
     let streamSettled = false;
     trackerHandle.deadlinePromise.then(() => {

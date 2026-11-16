@@ -5,6 +5,8 @@ import { useUtilityCalls, clearHistory } from '../../services/llm/utilityCallTra
 import type { UtilityCallStatus } from '../../services/llm/utilityCallTracker';
 import { useCacheTelemetry, hitRatio, totalsForDay, clearCacheTelemetry } from '../../services/llm/cacheTelemetry';
 import { useSceneStakesFallbackCount, resetSceneStakesFallbackCount } from '../../services/turn/sceneStakesTelemetry';
+import { useSyncExternalStore } from 'react';
+import { getLedgerSnapshot, subscribeTurnLedger, summarizeTurn } from '../../services/llm/turnLedger';
 
 function CacheTelemetrySection() {
     const rollup = useCacheTelemetry();
@@ -67,6 +69,9 @@ export function DebugTab() {
     // Hooks must run unconditionally — read this at the top, not inside the
     // collapsed-panel JSX (calling it there changed the hook count on toggle → React #310).
     const sceneStakesFallbackCount = useSceneStakesFallbackCount();
+    // 2.5.0 — what the last turn cost, split by whether the player waited for it.
+    const turnLedger = useSyncExternalStore(subscribeTurnLedger, getLedgerSnapshot, getLedgerSnapshot);
+    const turnSummary = summarizeTurn(turnLedger);
 
     return (
         <div className="space-y-6">
@@ -114,6 +119,29 @@ export function DebugTab() {
                                     </button>
                                 )}
                             </div>
+                        </div>
+
+                        <div className="bg-surface p-3 border border-border rounded">
+                            <label className="block text-[10px] text-text-dim uppercase tracking-widest font-bold mb-2">Last Turn — Model Calls</label>
+                            {!turnSummary ? (
+                                <p className="text-[9px] text-text-dim italic">No turn recorded yet.</p>
+                            ) : (
+                                <>
+                                    <div className="flex items-baseline gap-3 font-mono flex-wrap">
+                                        <span className="text-lg text-text-primary">{turnSummary.total}</span>
+                                        <span className="text-[10px] text-text-dim">calls</span>
+                                        <span className="text-terminal text-[11px]">{turnSummary.critical} critical</span>
+                                        <span className="text-[11px] text-text-dim">{(turnSummary.criticalMs / 1000).toFixed(1)}s waited</span>
+                                        <span className="text-amber-400 text-[11px]">{turnSummary.idle} idle</span>
+                                        <span className="text-[11px] text-text-dim">{(turnSummary.idleMs / 1000).toFixed(1)}s in downtime</span>
+                                        {turnSummary.failed > 0 && <span className="text-red-400 text-[11px]">{turnSummary.failed} failed</span>}
+                                    </div>
+                                    <p className="text-[9px] text-text-dim mt-2 leading-relaxed">
+                                        Critical calls block the reply; idle ones are housekeeping that runs while you read.
+                                        Moving work from critical to idle is what makes a turn feel faster without spending fewer tokens.
+                                    </p>
+                                </>
+                            )}
                         </div>
 
                         <div className="flex items-center justify-between">

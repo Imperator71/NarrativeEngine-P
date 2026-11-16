@@ -128,7 +128,7 @@ export async function describeImage(
     const headers = buildChatHeaders(provider);
 
     const trackingName = (provider as EndpointConfig).modelName || provider.endpoint;
-    const handle = startUtilityCall(TRACKING_LABEL, trackingName, CALL_TIMEOUT_MS);
+    const handle = startUtilityCall(TRACKING_LABEL, trackingName, CALL_TIMEOUT_MS, 'vision');
     const ownAbort = new AbortController();
     const signal = opts?.signal
         ? AbortSignal.any([opts.signal, ownAbort.signal])
@@ -201,7 +201,7 @@ export async function captionImage(
     }
 
     const trackingName = (provider as EndpointConfig).modelName || provider.endpoint;
-    const handle = startUtilityCall('vision-caption', trackingName, CALL_TIMEOUT_MS);
+    const handle = startUtilityCall('vision-caption', trackingName, CALL_TIMEOUT_MS, 'vision');
     const ownAbort = new AbortController();
     const signal = opts?.signal ? AbortSignal.any([opts.signal, ownAbort.signal]) : ownAbort.signal;
     handle.deadlinePromise.then(() => ownAbort.abort()).catch(() => { /* settled */ });
