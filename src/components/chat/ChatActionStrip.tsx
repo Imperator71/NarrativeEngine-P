@@ -175,7 +175,7 @@ function renderComposerBuiltin(id: string, deps: {
     onOpenOoc: () => void;
     onOpenArchive: () => void;
     settings: { aiTier?: AiTier; moduleEnabled?: Record<string, boolean> } | null;
-    context: { lootTree?: unknown } | null;
+    context: { lootTree?: unknown; diceInfluence?: { mode: string; value: number; usesLeft: number | null } | null } | null;
     activeCampaignId: string | null;
     deepArmed: boolean;
     setDeepArmed: (v: boolean) => void;
