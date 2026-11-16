@@ -4,7 +4,7 @@ import type { TurnContext } from './turnContext';
 import type { OpenAIMessage } from '../llm/llmService';
 import type { PromptInterceptionResult } from '../mods/interceptors';
 import { runPostTurnPipeline } from './postTurnPipeline';
-import { classifySceneStakes } from './sceneStakesTag';
+import { classifySceneStakes, buildSceneStakesInput } from './sceneStakesTag';
 import { isBlockEnabled } from './blockEnablement';
 import { shouldCondense, computeTrimIndex, getCondenseBudgetRatio } from '../archive-memory/condenser';
 import { toast } from '../../components/Toast';
@@ -377,11 +377,8 @@ async function runCommitPendingTurn(): Promise<void> {
         const aiTier = facade.config.aiTier;
         if ((utilityProvider || hasHostModelRole(facade, 'utility')) && isBlockEnabled('sceneStakesClassify', aiTier, facade.config.moduleEnabled)) {
             try {
-                const recentScene = (snapshot?.messages ?? messages).slice(-3).map(m => {
-                    const role = m.role === 'assistant' ? 'GM' : m.role.toUpperCase();
-                    return `[${role}]: ${(m.content || '').slice(0, 500)}`;
-                }).join('\n\n');
-                sceneStakes = await classifySceneStakes(utilityProvider, recentScene + '\n\n' + text.slice(0, 1000), hasHostModelRole(facade, 'utility')
+                const recentScene = buildSceneStakesInput(snapshot?.messages ?? messages, text);
+                sceneStakes = await classifySceneStakes(utilityProvider, recentScene, hasHostModelRole(facade, 'utility')
                     ? (prompt, request) => facade.model.call('utility', { prompt, ...request }).then(result => result.content)
                     : undefined);
             } catch (e) {
