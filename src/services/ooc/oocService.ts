@@ -23,8 +23,8 @@ export const OOC_READ_ONLY_TOOLS = [{
 function oocHistoryMessages(history: OocMessage[] | undefined): OpenAIMessage[] {
     return (history ?? [])
         .filter(message => message.content.trim())
-        .slice(-6)
-        .map(message => ({ role: message.role, content: message.content.trim().slice(0, 1_200) }));
+        .slice(-10)
+        .map(message => ({ role: message.role, content: message.content.trim().slice(0, 2_000) }));
 }
 
 function finalUserMessage(question: string, context: string, records: string): OpenAIMessage {

@@ -130,4 +130,32 @@ describe('buildOocContext', () => {
         expect(result.text).not.toContain('Known characters');
         expect(result.text).not.toContain('Known places');
     });
+
+    it('carries the always-on rules kernel, so mechanics questions have something to answer from', () => {
+        const result = buildOocContext(withLedgers({}, {
+            rulesChunks: [
+                { id: 'rule-1', header: 'Kernel Directives', content: 'ROLE: GM of a believable world.', tokens: 10, alwaysInclude: true, triggerKeywords: [], scanDepth: 0, category: 'system', linkedEntities: [] },
+                { id: 'rule-2', header: 'Resting', content: 'A long rest restores everything.', tokens: 8, alwaysInclude: false, triggerKeywords: ['rest'], scanDepth: 0, category: 'system', linkedEntities: [] },
+            ],
+        }), 'How does resting work?');
+        expect(result.text).toContain('Campaign rules (authoritative, always in force):');
+        expect(result.text).toContain('ROLE: GM of a believable world.');
+        // Non-kernel rules stay out of the base brief; retrieval brings them when the
+        // question points at them.
+        expect(result.text).not.toContain('A long rest restores everything.');
+        expect(result.sources).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'rules', id: 'rule-1' })]));
+    });
+
+    it('keeps the newest GM reply out of the transcript but still uses it to find on-stage NPCs', () => {
+        const result = buildOocContext(withLedgers({
+            npcLedger: [npc('npc-1', 'Mira')],
+            messages: [
+                { id: 'm1', role: 'user', content: 'I open the door.' },
+                { id: 'm2', role: 'assistant', content: 'Mira looks up from the ledger.' },
+            ],
+        }), 'What is going on?');
+        expect(result.text).not.toContain('Mira looks up from the ledger.');
+        expect(result.text).toContain('Known characters (NPC ledger):');
+        expect(result.text).toContain('Mira');
+    });
 });

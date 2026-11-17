@@ -8,8 +8,9 @@ describe('shouldSearchOoc', () => {
         expect(shouldSearchOoc('What does Mira know?')).toBe(true);
     });
 
-    it('honours manual force-search without making every normal question a retrieval request', () => {
-        expect(shouldSearchOoc('Can you summarize the current position?')).toBe(false);
+    it('consults records on every question, and still honours force-search', () => {
+        expect(shouldSearchOoc('Can you summarize the current position?')).toBe(true);
         expect(shouldSearchOoc('Can you summarize the current position?', true)).toBe(true);
+        expect(shouldSearchOoc('   ')).toBe(false);
     });
 });

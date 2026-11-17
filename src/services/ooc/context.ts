@@ -4,9 +4,15 @@ import { oocSections } from './sections';
 import type { OocCampaignSnapshot, OocSource } from './types';
 
 /** Ledger entries are cheap individually but unbounded in aggregate, so every ledger is capped. */
-const MAX_NPCS = 6;
-const MAX_PLACES = 4;
-const MAX_PC_TRAITS = 8;
+const MAX_NPCS = 12;
+const MAX_PLACES = 8;
+const MAX_PC_TRAITS = 16;
+const MAX_RECENT_MESSAGES = 20;
+const RECENT_MESSAGE_CHARS = 1_200;
+const MAX_FACTS = 12;
+/** Always-on rules the GM itself is held to; the kernel is ~12k chars in the stock set. */
+const MAX_KERNEL_RULES = 12;
+const KERNEL_RULE_CHARS = 2_000;
 
 const excerpt = (value: string, max = 500) => value.trim().replace(/\s+/g, ' ').slice(0, max);
 
@@ -122,6 +128,21 @@ export function buildOocContext(snapshot: OocCampaignSnapshot, question: string)
         sources.push({ kind: 'fact', id: label.toLowerCase().replace(/\s+/g, '-'), label, excerpt: valueExcerpt });
     }
 
+    // ── Rules — the always-on kernel. Without it, "how does X work?" had nothing to
+    // answer from: rules only entered the brief if retrieval happened to fire and a
+    // vector hit landed, which is not a reliable path for mechanics questions.
+    const kernelRules = (context.rulesChunks ?? [])
+        .filter(chunk => !chunk.disabled && chunk.alwaysInclude)
+        .slice(0, MAX_KERNEL_RULES);
+    if (kernelRules.length > 0) {
+        parts.push('Campaign rules (authoritative, always in force):');
+        for (const chunk of kernelRules) {
+            const text = excerpt(chunk.content, KERNEL_RULE_CHARS);
+            parts.push(`[${chunk.header}] ${text}`);
+            sources.push({ kind: 'rules', id: chunk.id, label: `Rule: ${chunk.header}`, excerpt: text });
+        }
+    }
+
     const identity = context.characterProfile?.identity;
     const identityParts = identity ? [identity.name, identity.race, identity.class, identity.archetype, identity.level !== undefined ? `Level ${identity.level}` : undefined].filter(Boolean) : [];
     if (identityParts.length > 0) {
@@ -181,12 +202,28 @@ export function buildOocContext(snapshot: OocCampaignSnapshot, question: string)
         }
     }
 
-    const recent = snapshot.messages
-        .filter(message => message.role === 'user' || message.role === 'assistant')
-        .slice(-4)
-        .map(message => ({ message, text: excerpt(currentSwipeText(message), 600) }))
+    const story = snapshot.messages
+        .filter(message => message.role === 'user' || message.role === 'assistant');
+    // The newest GM reply is deliberately left out: Ask GM is usually asked *about*
+    // it, and handing the model its own prose invites it to paraphrase the narration
+    // instead of checking the campaign records. Everything older is fair game.
+    let lastAssistantIndex = -1;
+    for (let index = story.length - 1; index >= 0; index--) {
+        if (story[index].role === 'assistant') { lastAssistantIndex = index; break; }
+    }
+    const recent = story
+        .filter((_message, index) => index !== lastAssistantIndex)
+        .slice(-MAX_RECENT_MESSAGES)
+        .map(message => ({ message, text: excerpt(currentSwipeText(message), RECENT_MESSAGE_CHARS) }))
         .filter(entry => entry.text);
-    const recentText = recent.map(entry => entry.text).join('\n');
+    // NPC/place selection still reads the newest reply, even though it is kept out of
+    // the brief: whoever just appeared on stage is named there, and dropping it from
+    // selection too would lose them from the ledgers.
+    const recentText = story
+        .slice(-6)
+        .map(message => excerpt(currentSwipeText(message), 600))
+        .filter(Boolean)
+        .join('\n');
 
     // ── Location Ledger — the current place first, then any place the question names. ──
     const locationLedger = snapshot.locationLedger ?? [];
@@ -231,7 +268,7 @@ export function buildOocContext(snapshot: OocCampaignSnapshot, question: string)
     const facts = snapshot.semanticFacts
         .filter(fact => factMatches(question, fact))
         .sort((a, b) => b.importance - a.importance)
-        .slice(0, 6);
+        .slice(0, MAX_FACTS);
     if (facts.length) {
         parts.push('Verified campaign facts:');
         for (const fact of facts) {
