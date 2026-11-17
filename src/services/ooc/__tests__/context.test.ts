@@ -146,15 +146,18 @@ describe('buildOocContext', () => {
         expect(result.sources).toEqual(expect.arrayContaining([expect.objectContaining({ kind: 'rules', id: 'rule-1' })]));
     });
 
-    it('keeps the newest GM reply out of the transcript but still uses it to find on-stage NPCs', () => {
+    it('carries the newest GM reply in full, and older turns excerpted', () => {
+        const longReply = `Mira looks up. ${'a'.repeat(3_000)} END OF THE LINE`;
         const result = buildOocContext(withLedgers({
             npcLedger: [npc('npc-1', 'Mira')],
             messages: [
                 { id: 'm1', role: 'user', content: 'I open the door.' },
-                { id: 'm2', role: 'assistant', content: 'Mira looks up from the ledger.' },
+                { id: 'm2', role: 'assistant', content: `${'b'.repeat(3_000)} OLD TURN` },
+                { id: 'm3', role: 'assistant', content: longReply },
             ],
         }), 'What is going on?');
-        expect(result.text).not.toContain('Mira looks up from the ledger.');
+        expect(result.text).toContain('END OF THE LINE');
+        expect(result.text).not.toContain('OLD TURN');
         expect(result.text).toContain('Known characters (NPC ledger):');
         expect(result.text).toContain('Mira');
     });

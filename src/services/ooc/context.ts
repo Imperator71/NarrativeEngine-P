@@ -204,21 +204,25 @@ export function buildOocContext(snapshot: OocCampaignSnapshot, question: string)
 
     const story = snapshot.messages
         .filter(message => message.role === 'user' || message.role === 'assistant');
-    // The newest GM reply is deliberately left out: Ask GM is usually asked *about*
-    // it, and handing the model its own prose invites it to paraphrase the narration
-    // instead of checking the campaign records. Everything older is fair game.
+    // The newest GM reply is carried in FULL: it is the line the player is asking
+    // about, and trimming it is exactly what made Ask GM answer from the turn before.
+    // Everything older is excerpted to keep the brief bounded.
     let lastAssistantIndex = -1;
     for (let index = story.length - 1; index >= 0; index--) {
         if (story[index].role === 'assistant') { lastAssistantIndex = index; break; }
     }
+    const firstKept = Math.max(0, story.length - MAX_RECENT_MESSAGES);
     const recent = story
-        .filter((_message, index) => index !== lastAssistantIndex)
-        .slice(-MAX_RECENT_MESSAGES)
-        .map(message => ({ message, text: excerpt(currentSwipeText(message), RECENT_MESSAGE_CHARS) }))
-        .filter(entry => entry.text);
-    // NPC/place selection still reads the newest reply, even though it is kept out of
-    // the brief: whoever just appeared on stage is named there, and dropping it from
-    // selection too would lose them from the ledgers.
+        .map((message, index) => ({
+            message,
+            index,
+            text: index === lastAssistantIndex
+                ? currentSwipeText(message).trim()
+                : excerpt(currentSwipeText(message), RECENT_MESSAGE_CHARS),
+        }))
+        .filter(entry => entry.index >= firstKept && entry.text);
+    // NPC/place selection reads the newest reply too (untrimmed): whoever just walked
+    // on stage is named there.
     const recentText = story
         .slice(-6)
         .map(message => excerpt(currentSwipeText(message), 600))

@@ -35,7 +35,7 @@ describe('answerOocQuestion', () => {
         searchCampaignRecords.mockResolvedValue({ text: 'archive data', sources: [{ kind: 'archive', id: '001', label: 'Archive scene 001', excerpt: 'A record.' }] });
     });
 
-    it('uses exactly one system prompt and leaves the newest GM reply out of the brief', async () => {
+    it('uses exactly one system prompt and carries the newest GM reply untrimmed', async () => {
         answerWith('The party is in Blackwater.');
         const answer = await answerOocQuestion({ question: 'Can you summarize our current position?', snapshot });
         expect(answer.text).toContain('Blackwater');
@@ -48,9 +48,8 @@ describe('answerOocQuestion', () => {
         expect(finalUser.role).toBe('user');
         expect(finalUser.content).toContain('READ-ONLY DATA START');
         expect(finalUser.content).toContain('READ-ONLY DATA END');
-        // The reply just narrated is what the player is asking *about*; it is not fed
-        // back as data, so the answer is built from the records instead of its prose.
-        expect(finalUser.content).not.toContain('Visible latest swipe');
+        // The line the player is asking about must be there, and in full.
+        expect(finalUser.content).toContain('Visible latest swipe');
         expect(finalUser.content).not.toContain('Default reply');
     });
 
