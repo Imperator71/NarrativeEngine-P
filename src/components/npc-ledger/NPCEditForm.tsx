@@ -22,6 +22,9 @@ type Props = {
     onCancel: () => void;
     onDelete: (id: string, e: React.MouseEvent) => void;
     onAIUpdate: () => void;
+    /** Ask an agent to propose edits from a free-text instruction. Resolves when applied. */
+    onAgentEdit: (instruction: string) => Promise<void>;
+    isAgentEditing: boolean;
     onGeneratePortrait: () => void;
     onUploadPortrait: (file: File) => void;
     onRemovePortrait: () => void;
@@ -29,8 +32,11 @@ type Props = {
 
 export function NPCEditForm({
     form, setForm, selectedId, isEditing, isAIUpdating, isGeneratingImage,
-    onEdit, onSave, onCancel, onDelete, onAIUpdate, onGeneratePortrait, onUploadPortrait, onRemovePortrait,
+    onEdit, onSave, onCancel, onDelete, onAIUpdate, onAgentEdit, isAgentEditing,
+    onGeneratePortrait, onUploadPortrait, onRemovePortrait,
 }: Props) {
+    const [agentOpen, setAgentOpen] = useState(false);
+    const [agentInstruction, setAgentInstruction] = useState('');
     // Subscribed, not read through `getState()` in the render body: the
     // Events panel below is built from these two, and an imperative read
     // registers no dependency, so the list went stale the moment a
@@ -150,6 +156,15 @@ export function NPCEditForm({
                 {!isEditing && (
                     <div className="flex items-center gap-2">
                         <button
+                            onClick={() => setAgentOpen(open => !open)}
+                            disabled={isAgentEditing || !selectedId}
+                            title="Describe the change you want; the agent edits the record and shows you the result"
+                            className="flex items-center gap-1.5 bg-void border border-border px-3 py-1.5 text-xs text-text-dim hover:text-terminal hover:border-terminal uppercase tracking-widest transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isAgentEditing ? <Loader2 size={12} className="animate-spin" /> : <ScrollText size={12} />}
+                            Edit with AI
+                        </button>
+                        <button
                             onClick={onAIUpdate}
                             disabled={isAIUpdating || !selectedId}
                             title="Ask AI to update this NPC based on recent chat history"
@@ -167,6 +182,44 @@ export function NPCEditForm({
                     </div>
                 )}
             </div>
+
+            {agentOpen && (
+                <div className="mb-5 border border-border bg-void/60 p-4">
+                    <label className="block text-text-dim text-[10px] uppercase tracking-wider mb-2">
+                        What should change?
+                    </label>
+                    <textarea
+                        value={agentInstruction}
+                        onChange={e => setAgentInstruction(e.target.value)}
+                        rows={3}
+                        placeholder="Check the wants list — does it still make sense? Also make them the elder sibling of Mira and shift their motive toward gold."
+                        className="w-full bg-void border border-border px-3 py-2 text-xs text-text-primary resize-y focus:outline-none focus:border-terminal"
+                    />
+                    <div className="flex items-center gap-2 mt-2">
+                        <button
+                            onClick={() => {
+                                const instruction = agentInstruction.trim();
+                                if (!instruction) return;
+                                void onAgentEdit(instruction).then(() => setAgentOpen(false));
+                            }}
+                            disabled={isAgentEditing || !agentInstruction.trim()}
+                            className="flex items-center gap-1.5 bg-void border border-terminal/40 px-3 py-1.5 text-xs text-terminal hover:border-terminal uppercase tracking-widest transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                            {isAgentEditing ? <Loader2 size={12} className="animate-spin" /> : <Sparkles size={12} />}
+                            Run agent
+                        </button>
+                        <button
+                            onClick={() => setAgentOpen(false)}
+                            className="px-3 py-1.5 text-xs text-text-dim hover:text-text-primary uppercase tracking-widest"
+                        >
+                            Cancel
+                        </button>
+                        <span className="text-[10px] text-text-dim/60 normal-case tracking-normal">
+                            Edits land in the fields below — nothing is saved until you press Save.
+                        </span>
+                    </div>
+                </div>
+            )}
 
             {/* Form grid */}
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 flex-1">

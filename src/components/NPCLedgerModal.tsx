@@ -3,6 +3,7 @@ import { X, Plus, Users, LayoutGrid, List, CheckSquare, Upload, Download, BookOp
 import { useShallow } from 'zustand/react/shallow';
 import { useAppStore } from '../store/useAppStore';
 import { updateExistingNPCs } from '../services/chatEngine';
+import { runNpcAgent, applyNpcAgentPatch } from '../services/npc/npcAgent';
 import { parseNPCsFromLore } from '../services/lore/loreNPCParser';
 import type { NPCEntry } from '../types';
 import { toast } from './Toast';
@@ -91,6 +92,7 @@ export function NPCLedgerModal() {
 
     const [viewMode, setViewMode] = useState<'list' | 'gallery'>('gallery');
     const [isAIUpdating, setIsAIUpdating] = useState(false);
+    const [isAgentEditing, setIsAgentEditing] = useState(false);
 
     const [selectMode, setSelectMode] = useState(false);
     const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
@@ -580,6 +582,58 @@ export function NPCLedgerModal() {
         }
     };
 
+    const handleAgentEdit = async (instruction: string) => {
+        if (!selectedId) return;
+        const state = useAppStore.getState();
+        const provider = state.getActiveStoryEndpoint();
+        if (!provider) { alert('Story AI endpoint is not configured.'); return; }
+        const npc = npcLedger.find(n => n.id === selectedId);
+        if (!npc) return;
+        setIsAgentEditing(true);
+        try {
+            const result = await runNpcAgent({
+                npc,
+                otherNpcs: npcLedger.filter(other => other.id !== npc.id && !other.isPC),
+                place: state.context?.currentFeature ?? undefined,
+                recentBeats: state.archiveIndex?.slice(-3).flatMap(entry => entry.events?.map(event => event.text) ?? []),
+                instruction,
+                provider,
+            });
+            const outcome = applyNpcAgentPatch(npc, result.changes, npcLedger.filter(o => o.id !== npc.id).map(o => o.name));
+            if (outcome.applied.length > 0) {
+                const patch: Partial<NPCEntry> = {};
+                for (const change of outcome.applied) {
+                    const [head, tail] = change.field.split('.');
+                    if (head === 'wants') {
+                        patch.wants = { ...(outcome.npc.wants ?? { long: '', medium: [], short: [] }) };
+                    } else {
+                        (patch as Record<string, unknown>)[head] = (outcome.npc as Record<string, unknown>)[head];
+                    }
+                    void tail;
+                }
+                updateNPC(npc.id, patch);
+                setForm(prev => ({ ...prev, ...patch }));
+            }
+            const summary = outcome.applied.length > 0
+                ? `Changed ${outcome.applied.map(change => change.field).join(', ')}`
+                : 'No fields changed';
+            if (outcome.rejected.length > 0) {
+                toast.error(`${summary}. Rejected: ${outcome.rejected.map(r => `${r.change.field} (${r.reason})`).join('; ')}`);
+            } else {
+                toast.success(summary);
+            }
+            if (result.assessment) console.info('[NPC agent]', result.assessment);
+            if (result.questions.length > 0) {
+                toast.info(`Agent asks: ${result.questions.join(' ')}`);
+            }
+        } catch (err: unknown) {
+            console.error('[NPC Agent Edit] Error:', err);
+            toast.error(err instanceof Error ? err.message : 'The NPC agent failed');
+        } finally {
+            setIsAgentEditing(false);
+        }
+    };
+
     const handleCancelEdit = () => {
         const npc = npcLedger.find(n => n.id === selectedId);
         if (npc) setForm({ ...npc });
@@ -778,6 +832,8 @@ export function NPCLedgerModal() {
                         selectedId={selectedId}
                         isEditing={isEditing}
                         isAIUpdating={isAIUpdating}
+                        onAgentEdit={handleAgentEdit}
+                        isAgentEditing={isAgentEditing}
                         isGeneratingImage={portraits.isGeneratingImage}
                         onEdit={() => setIsEditing(true)}
                         onSave={handleSave}

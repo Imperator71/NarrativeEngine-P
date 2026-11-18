@@ -20,6 +20,8 @@ function TestWrapper({ npc }: { npc: NPCEntry }) {
             onCancel={() => {}}
             onDelete={() => {}}
             onAIUpdate={() => {}}
+            onAgentEdit={async () => {}}
+            isAgentEditing={false}
             onGeneratePortrait={() => {}}
             onUploadPortrait={() => {}}
             onRemovePortrait={() => {}}
