@@ -22,6 +22,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 import { runCanonicalTurn } from './runCanonicalTurn';
+import { serializeStableTrace } from './traceNormalize';
 import { postTurnTracks } from '../../tracks';
 import { getExtensionModules } from '../../../payload/contributions/extensions';
 
@@ -32,7 +33,9 @@ const BASELINE_PATH = join(HERE, 'baseline.json');
 // string-key ordering. The trace is already deep-normalized by the recorder
 // (functions dropped, circular refs replaced), so this is the byte contract.
 function serialize(trace: unknown): string {
-    return JSON.stringify(trace, null, 0);
+    // Generated ids and clock readings are stabilized (see traceNormalize.ts);
+    // every other byte is compared exactly.
+    return serializeStableTrace(trace);
 }
 
 function readBaseline(): string | null {

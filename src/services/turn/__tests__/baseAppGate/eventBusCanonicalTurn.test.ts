@@ -22,6 +22,7 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 import { runCanonicalTurn } from './runCanonicalTurn';
+import { serializeStableTrace } from './traceNormalize';
 import { postTurnTracks } from '../../tracks';
 import { modEventBus, eventFaultStore, CORE_EVENT_NAMES } from '../../../mods/events';
 import type { ModEventOwner } from '../../../mods/events';
@@ -141,7 +142,7 @@ describe('Phase 3.2 — a fixture mod sees the canonical turn', () => {
         let serialized: string;
         try {
             const result = await runCanonicalTurn();
-            serialized = JSON.stringify(result.trace, null, 0);
+            serialized = serializeStableTrace(result.trace);
         } finally {
             unsubscribe();
         }
@@ -169,7 +170,7 @@ describe('Phase 3.2 — a fixture mod sees the canonical turn', () => {
         let serialized: string;
         try {
             const result = await runCanonicalTurn();
-            serialized = JSON.stringify(result.trace, null, 0);
+            serialized = serializeStableTrace(result.trace);
         } finally {
             for (const off of offs) off();
         }

@@ -593,7 +593,10 @@ export function NPCLedgerModal() {
         try {
             const result = await runNpcAgent({
                 npc,
-                otherNpcs: npcLedger.filter(other => other.id !== npc.id && !other.isPC),
+                // Who else is in the cast: the player character is excluded by id, not
+                // by a PC/NPC classifier branch — this modal must stay free of that
+                // logic (see services/character/__tests__/isolation.test.ts).
+                otherNpcs: npcLedger.filter(other => other.id !== npc.id && other.id !== state.playerCharacter?.id),
                 place: state.context?.currentFeature ?? undefined,
                 recentBeats: state.archiveIndex?.slice(-3).flatMap(entry => entry.events?.map(event => event.text) ?? []),
                 instruction,
