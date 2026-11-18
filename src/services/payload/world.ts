@@ -346,11 +346,17 @@ export function buildWorld(opts: {
             // not additive across a line boundary and the golden gates pin
             // these bytes.
             const includedEvents: SceneEvent[] = [];
+            // The block used to arrive as bare "[bargain] …" lines with no framing, so the
+            // writer read the most dramatic recent kinds as what happens next and repeated
+            // them. The header makes the list past-tense and spent; the footer names kinds
+            // that already appeared twice.
+            const beatsHeader = '[RECENT BEATS — already happened. Do not continue this pattern: choose a different kind of development this turn.]';
+            const headerTokens = countTokens(beatsHeader);
             let accumulatedText = '';
             for (const event of sortedEvents) {
                 const line = renderSceneEventLine(event);
                 const candidate = accumulatedText ? `${accumulatedText}\n${line}` : line;
-                if (countTokens(candidate) <= SCENE_EVENTS_TOKEN_BUDGET) {
+                if (countTokens(candidate) + headerTokens <= SCENE_EVENTS_TOKEN_BUDGET) {
                     includedEvents.push(event);
                     accumulatedText = candidate;
                 } else {
@@ -359,7 +365,18 @@ export function buildWorld(opts: {
             }
 
             if (includedEvents.length > 0) {
-                const eventsText = accumulatedText;
+                const typeCounts = new Map<string, number>();
+                for (const event of includedEvents) {
+                    if (!event.eventType) continue;
+                    typeCounts.set(event.eventType, (typeCounts.get(event.eventType) ?? 0) + 1);
+                }
+                const spent = [...typeCounts.entries()]
+                    .filter(([, count]) => count >= 2)
+                    .map(([type, count]) => `${type} ×${count}`);
+                const spentFooter = spent.length > 0
+                    ? `\n[SPENT — do not use again this chapter: ${spent.join(', ')}]`
+                    : '';
+                const eventsText = `${beatsHeader}\n${accumulatedText}${spentFooter}`;
                 worldBlocks.push({
                     source: 'Recent Scene Events',
                     content: eventsText,
