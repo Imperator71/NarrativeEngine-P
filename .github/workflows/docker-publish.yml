@@ -49,5 +49,7 @@ jobs:
           # Layer cache in the Actions cache: an app-only change re-uses the
           # dependency layers instead of rebuilding them, which keeps the pushed
           # delta small — the old workflow rebuilt everything on every push.
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+          # `scope` is part of the cache key: bump it to abandon a cache that has
+          # gone bad (a poisoned npm cache makes every build fail at `npm ci`).
+          cache-from: type=gha,scope=ne-build-v2
+          cache-to: type=gha,mode=max,scope=ne-build-v2
