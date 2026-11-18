@@ -19,6 +19,13 @@
 FROM node:22-bookworm-slim AS builder
 WORKDIR /app
 
+# onnxruntime-node's postinstall downloads CUDA binaries for the detected
+# platform. For onnxruntime-node 1.21.0 the linux-x64-gpu asset is a 404 on the
+# ONNX Runtime release page, so the install throws and `npm ci` fails the build.
+# The app embeds the campaign on CPU (mxbai-embed-large via ONNX CPU EP), so the
+# CUDA provider is dead weight anyway — skip its download.
+ENV ONNXRUNTIME_NODE_INSTALL_CUDA=skip
+
 RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 make g++ \
   && rm -rf /var/lib/apt/lists/*
