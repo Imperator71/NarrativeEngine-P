@@ -95,7 +95,7 @@ describe('rollDiceFairness', () => {
         });
         const pool = 'Disadvantage: Success, Normal: Success, Advantage: Success';
         expect(result).toBe(
-            `\n[DICE OUTCOMES: COMBAT=(${pool}) | PERCEPTION=(${pool}) | STEALTH=(${pool}) | SOCIAL=(${pool}) | MOVEMENT=(${pool}) | KNOWLEDGE=(${pool}) | MUNDANE=(Narrative Boon)]`
+            `\n[DICE OUTCOMES: COMBAT=(${pool}) | PERCEPTION=(${pool}) | STEALTH=(${pool}) | SOCIAL=(${pool}) | MOVEMENT=(${pool}) | KNOWLEDGE=(${pool}) | MUNDANE=(Narrative Boon) — use only the categories this turn actually engages; the rest are available, not obligations]`
         );
     });
 
@@ -115,7 +115,7 @@ describe('rollDiceFairness', () => {
                 categories: [{ id: 'c1', name: 'Combat', dieTypeId: 'd10' }],
             },
         });
-        expect(result).toBe('\n[DICE OUTCOMES: COMBAT=(6 → Mid)]');
+        expect(result).toBe('\n[DICE OUTCOMES: COMBAT=(6 → Mid) — use only the categories this turn actually engages; the rest are available, not obligations]');
     });
 
     it('returns empty string when dice fairness is off', () => {
@@ -128,7 +128,7 @@ describe('rollDiceFairness', () => {
             diceFairnessActive: true,
             diceSystem: { dieTypes: [], categories: [{ id: 'c1', name: 'Combat', dieTypeId: 'ghost' }] },
         });
-        expect(result).toBe('\n[DICE OUTCOMES: ]');
+        expect(result).toBe('\n[DICE OUTCOMES:  — use only the categories this turn actually engages; the rest are available, not obligations]');
     });
 });
 

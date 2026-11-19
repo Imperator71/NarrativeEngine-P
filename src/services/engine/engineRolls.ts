@@ -30,7 +30,11 @@ const DESKTOP_DEFAULTS: EngineDefaultLists = {
 };
 
 const formatWorldTag = ({ who, what, where, why }: WorldTagParts): string =>
-    `[WORLD_EVENT: ${who} ${what} ${why} ${where}]`;
+    // The pools are random, so the assembled line often cannot fit the scene. Say so
+    // in the tag itself: it is background news, not a beat to stage here.
+    `[WORLD_EVENT: ${who} ${what} ${why} ${where} — background only: render as news,`
+    + ` rumour or a distant consequence, never as action in this scene, and omit it`
+    + ` entirely if it cannot fit this place and moment]`;
 
 export function rollEngines(context: GameContext): EngineRollResult {
     return engineRollEngines(context, {

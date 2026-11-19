@@ -38,7 +38,7 @@ describe('behavior lock: rollEngines', () => {
         expect(result.appendToInput).toBe(
             '\n[SURPRISE EVENT: T2 (N2)]' +
             '\n[ENCOUNTER EVENT: E2 (O2)]' +
-            '\n[WORLD_EVENT: W2 A2 Y2 R2]'
+            '\n[WORLD_EVENT: W2 A2 Y2 R2 — background only: render as news, rumour or a distant consequence, never as action in this scene, and omit it entirely if it cannot fit this place and moment]'
         );
         expect(result.updatedDCs).toEqual({ surpriseDC: 77, encounterDC: 155, worldEventDC: 444 });
     });
@@ -58,7 +58,7 @@ describe('behavior lock: rollEngines', () => {
             worldEventDC: 1,
         }));
         expect(result.appendToInput).toBe(
-            `\n[WORLD_EVENT: ${pick(DEFAULT_WORLD_WHO)} ${pick(DEFAULT_WORLD_WHAT)} ${pick(DEFAULT_WORLD_WHY)} ${pick(DEFAULT_WORLD_WHERE)}]`
+            `\n[WORLD_EVENT: ${pick(DEFAULT_WORLD_WHO)} ${pick(DEFAULT_WORLD_WHAT)} ${pick(DEFAULT_WORLD_WHY)} ${pick(DEFAULT_WORLD_WHERE)} — background only: render as news, rumour or a distant consequence, never as action in this scene, and omit it entirely if it cannot fit this place and moment]`
         );
     });
 });
@@ -72,7 +72,7 @@ describe('behavior lock: rollDiceFairness', () => {
         }));
         const pool = 'Disadvantage: Success, Normal: Success, Advantage: Success';
         expect(result).toBe(
-            `\n[DICE OUTCOMES: COMBAT=(${pool}) | PERCEPTION=(${pool}) | STEALTH=(${pool}) | SOCIAL=(${pool}) | MOVEMENT=(${pool}) | KNOWLEDGE=(${pool}) | MUNDANE=(Narrative Boon)]`
+            `\n[DICE OUTCOMES: COMBAT=(${pool}) | PERCEPTION=(${pool}) | STEALTH=(${pool}) | SOCIAL=(${pool}) | MOVEMENT=(${pool}) | KNOWLEDGE=(${pool}) | MUNDANE=(Narrative Boon) — use only the categories this turn actually engages; the rest are available, not obligations]`
         );
     });
 
@@ -92,7 +92,7 @@ describe('behavior lock: rollDiceFairness', () => {
                 categories: [{ id: 'c1', name: 'Combat', dieTypeId: 'd10' }],
             },
         }));
-        expect(result).toBe('\n[DICE OUTCOMES: COMBAT=(6 → Mid)]');
+        expect(result).toBe('\n[DICE OUTCOMES: COMBAT=(6 → Mid) — use only the categories this turn actually engages; the rest are available, not obligations]');
     });
 
     it('returns empty string when dice fairness is off', () => {

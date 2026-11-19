@@ -81,25 +81,25 @@ const ROLL_DICE_TOOL = {
     type: 'function' as const,
     function: {
         name: 'roll_dice',
-        description:
-            "Roll dice when the player attempts an action with an uncertain outcome — combat hits, ability/skill checks, saves, contested actions. Do NOT call for descriptive moments, dialogue, or trivial actions. Mundane actions resolve as plain success without a roll.\n\n" +
-            "Call roll_dice BEFORE narrating the outcome, then use the returned `tier` to shape the narrative.\n\n" +
-            "Trigger: Player attempts an action with an uncertain outcome — combat hits, skill checks, saves, contested actions.\n" +
-            "1. Identify core intent of the player's action.\n" +
-            "2. If the outcome depends on chance, CALL `roll_dice` BEFORE narrating. Do NOT narrate the outcome first.\n" +
-            "   - `dice`: use the die type appropriate to the category (e.g. Combat→d20, Social→d6, Perception→d6). Use `NdM` form (e.g. 2d6, 1d100). Optionally add `+N` or `-N` modifier.\n" +
-            "   - `reason`: short label (e.g. \"Stealth check vs guard\", \"Longsword attack\")\n" +
-            "   - `category`: one of Combat / Stealth / Social / Perception / Movement / Knowledge / Mundane (used for d20 tier mapping only)\n" +
-            "3. Use the returned `tier` (outcome band label, e.g. Catastrophe / Failure / Success / Triumph / Narrative Boon) to shape the narrative. If no tier is returned (non-d20 rolls without configured bands), interpret the raw `result` per the campaign's Action Resolution rules.\n" +
-            "4. Do NOT call `roll_dice` for descriptive moments, dialogue, or trivial actions.\n\n" +
-            "Advantage: if the player explicitly leverages a known weakness or superior tool, call `roll_dice` twice and use the higher result. If explicitly impaired (blinded, wounded, overwhelmed), call twice and use the lower. Otherwise, single roll.\n\n" +
-            "Outcome band semantics (when tier is returned):\n" +
-            "- Catastrophe: severe unexpected failure, consequences beyond simple loss.\n" +
-            "- Failure: fails. Damage, setback, or resource loss.\n" +
-            "- Success: succeeds exactly as intended.\n" +
-            "- Triumph: succeeds with an unexpected additional benefit.\n" +
-            "- Narrative Boon: flawless. Massive strategic or narrative advantage.\n" +
-            "Other custom bands: interpret per the campaign's Action Resolution rules.",
+        description: `Roll dice ONLY when a check is genuinely in doubt AND failure would cost something concrete - injury, loss, time, exposure, or an NPC's lasting judgement. If the outcome is settled by the scene, the fiction, or the character's competence, do not call: narrate it.
+
+Ordinary looking, listening, walking, haggling, or chatting is NOT a check. Perception and Social are the two most over-used categories - use Perception only for actively searching something hidden under pressure, and Social only when an NPC's reaction is truly contested and the stake is named in the fiction.
+
+Call roll_dice BEFORE narrating the outcome, then shape the reply from the returned "tier".
+   - "dice": die type for the category (Combat to d20, Social to d6, Perception to d6), as "NdM" with an optional modifier.
+   - "reason": short label (e.g. "Stealth check vs guard").
+   - "category": one of Combat / Stealth / Social / Perception / Movement / Knowledge / Mundane.
+Use the returned "tier" (Catastrophe / Failure / Success / Triumph / Narrative Boon) as the outcome. If no tier is returned, interpret the raw "result" per the campaign's Action Resolution rules.
+
+Advantage: if the player explicitly leverages a known weakness or superior tool, call twice and use the higher result. If explicitly impaired (blinded, wounded, overwhelmed), call twice and use the lower. Otherwise, single roll.
+
+Outcome band semantics (when tier is returned):
+- Catastrophe: severe unexpected failure, consequences beyond simple loss.
+- Failure: fails. Damage, setback, or resource loss.
+- Success: succeeds exactly as intended.
+- Triumph: succeeds with an unexpected additional benefit.
+- Narrative Boon: flawless. Massive strategic or narrative advantage.
+Other custom bands: interpret per the campaign's Action Resolution rules.`,
         parameters: {
             type: 'object' as const,
             properties: {

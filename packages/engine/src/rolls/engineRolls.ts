@@ -201,7 +201,11 @@ function rollDiceFairnessGeneralized(sys: DiceSystemConfig, influence: DiceInflu
         const tier = mapTier(value, dieType) ?? 'Unmapped';
         parts.push(`${cat.name.toUpperCase()}=(${value} → ${tier})`);
     }
-    return `\n[DICE OUTCOMES: ${parts.join(' | ')}]`;
+    // Every category is rolled whether or not the turn uses it, so the results must
+    // read as available material, not as beats owed to the scene. Without this the
+    // writer narrates a perception and a social check in every single reply.
+    return `\n[DICE OUTCOMES: ${parts.join(' | ')} — use only the categories this turn`
+        + ` actually engages; the rest are available, not obligations]`;
 }
 
 function rollDiceFairnessLegacy(context: EngineRollContext): string {
@@ -213,7 +217,7 @@ function rollDiceFairnessLegacy(context: EngineRollContext): string {
         ].sort((a, b) => a - b);
         return `Disadvantage: ${mapTierLegacy(rolls[0], context.diceConfig ?? null) ?? 'Unknown'}, Normal: ${mapTierLegacy(rolls[1], context.diceConfig ?? null) ?? 'Unknown'}, Advantage: ${mapTierLegacy(rolls[2], context.diceConfig ?? null) ?? 'Unknown'}`;
     };
-    return `\n[DICE OUTCOMES: COMBAT=(${generatePool()}) | PERCEPTION=(${generatePool()}) | STEALTH=(${generatePool()}) | SOCIAL=(${generatePool()}) | MOVEMENT=(${generatePool()}) | KNOWLEDGE=(${generatePool()}) | MUNDANE=(Narrative Boon)]`;
+    return `\n[DICE OUTCOMES: COMBAT=(${generatePool()}) | PERCEPTION=(${generatePool()}) | STEALTH=(${generatePool()}) | SOCIAL=(${generatePool()}) | MOVEMENT=(${generatePool()}) | KNOWLEDGE=(${generatePool()}) | MUNDANE=(Narrative Boon) — use only the categories this turn actually engages; the rest are available, not obligations]`;
 }
 
 // ── Manual "dice me" roll (generalized) ────────────────────────────────

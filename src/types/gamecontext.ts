@@ -641,7 +641,7 @@ export function migrateLegacyContext(ctx: Partial<GameContext>): GameContext {
         surpriseEngineActive: false,
         encounterEngineActive: true,
         worldEngineActive: true,
-        diceFairnessActive: true,
+        diceFairnessActive: false,
         sceneNote: '',
         sceneNoteActive: false,
         sceneNoteDepth: 3,

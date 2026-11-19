@@ -647,10 +647,10 @@ function DiceFairnessSection({ context, updateContext }: DiceFairnessSectionProp
                     <div className="w-1.5 h-1.5 rounded-full bg-ice" />
                     Dice Fairness Engine
                 </div>
-                <Toggle active={context.diceFairnessActive ?? true} onChange={() => updateContext({ diceFairnessActive: !(context.diceFairnessActive ?? true) })} />
+                <Toggle active={context.diceFairnessActive ?? false} onChange={() => updateContext({ diceFairnessActive: !(context.diceFairnessActive ?? false) })} />
             </div>
 
-            {(context.diceFairnessActive ?? true) && (
+            {(context.diceFairnessActive ?? false) && (
                 <div className="text-[11px] text-amber-400/70 italic px-1">
                     ⚡ Pool mode active — pre-rolled dice injected. Turn OFF to let the AI call roll_dice on demand.
                 </div>
